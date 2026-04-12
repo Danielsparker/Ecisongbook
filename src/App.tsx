@@ -42,26 +42,12 @@ export default function App() {
     return isAdmin || userRole === 'contributor' || userRole === 'viewer';
   }, [publicSubmissions, isAdmin, userRole, user]);
 
-  const handleAddSongClick = async () => {
-    if (!user) {
-      try {
-        const loggedInUser = await loginWithGoogle();
-        if (loggedInUser) {
-          // After login, we need to check if they actually have permission
-          // publicSubmissions is already being synced via onSnapshot
-          // But we might need to wait for the user role to sync
-          setIsSubmitOpen(true);
-        }
-      } catch (error) {
-        console.error("Login failed:", error);
-      }
-    } else {
-      if (!canSubmit) {
-        alert("Submissions are currently restricted to authorized contributors. Please contact the administrator for access.");
-        return;
-      }
-      setIsSubmitOpen(true);
+  const handleAddSongClick = () => {
+    if (!canSubmit) {
+      alert("Submissions are currently restricted to authorized contributors. Please contact the administrator for access.");
+      return;
     }
+    setIsSubmitOpen(true);
   };
 
   useEffect(() => {
@@ -127,7 +113,6 @@ export default function App() {
   }, [songs, searchQuery]);
 
   const handleSubmitSong = async (songData: { title: string; songNo: number; genre: string; lyrics: string }) => {
-    if (!user) return;
     if (!canSubmit) {
       alert("Submissions are currently restricted to authorized contributors.");
       return;
@@ -136,7 +121,7 @@ export default function App() {
     try {
       await addDoc(collection(db, 'songs'), {
         ...songData,
-        submittedBy: user.uid,
+        submittedBy: user?.uid || "anonymous",
         createdAt: serverTimestamp()
       });
     } catch (err) {

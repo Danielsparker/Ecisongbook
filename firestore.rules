@@ -61,7 +61,7 @@ service cloud.firestore {
              data.songNo is int && data.songNo > 0 &&
              data.genre is string && data.genre.size() > 0 && data.genre.size() < 50 &&
              data.lyrics is string && data.lyrics.size() > 0 && data.lyrics.size() < 10000 &&
-             data.submittedBy == request.auth.uid &&
+             (isAuthenticated() ? data.submittedBy == request.auth.uid : data.submittedBy == "anonymous") &&
              data.createdAt is timestamp;
     }
 
@@ -94,8 +94,8 @@ service cloud.firestore {
 
     match /songs/{songId} {
       allow read: if true; // Publicly readable as per lyrics site requirement
-      allow create: if isAuthenticated() && isValidSong(request.resource.data) && 
-                    (isAdmin() || isContributor() || get(/databases/$(database)/documents/config/global).data.publicSubmissions == true);
+      allow create: if isValidSong(request.resource.data) && 
+                    (get(/databases/$(database)/documents/config/global).data.publicSubmissions == true || (isAuthenticated() && (isAdmin() || isContributor())));
       allow update: if (isDocOwner() && isValidSong(request.resource.data)) || isAdmin();
       allow delete: if isAdmin();
     }
