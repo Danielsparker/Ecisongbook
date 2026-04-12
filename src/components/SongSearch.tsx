@@ -13,7 +13,7 @@ export function SongSearch({ value, onChange }: SongSearchProps) {
       <Input
         type="text"
         placeholder="Search by title, genre, or song number..."
-        className="h-12 pl-10 pr-4 rounded-2xl border-slate-200 bg-white shadow-sm focus:ring-brand-500"
+        className="h-12 pl-10 pr-4 rounded-2xl border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm focus:ring-brand-500 dark:text-white dark:placeholder:text-slate-500"
         value={value}
         onChange={(e) => onChange(e.target.value)}
       />

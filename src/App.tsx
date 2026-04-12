@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
 import { Music2, Loader2, Plus } from 'lucide-react';
 
@@ -16,6 +16,7 @@ import { SongSearch } from './components/SongSearch';
 import { SongCard } from './components/SongCard';
 import { LyricsModal } from './components/LyricsModal';
 import { SubmitSongDialog } from './components/SubmitSongDialog';
+import { SettingsDialog } from './components/SettingsDialog';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Button } from '@/components/ui/button';
 
@@ -25,7 +26,14 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSong, setSelectedSong] = useState<Song | null>(null);
   const [isSubmitOpen, setIsSubmitOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
+  const [publicSubmissions, setPublicSubmissions] = useState(true);
+
+  const isAdmin = useMemo(() => {
+    return user?.email === "danieldec996@gmail.com";
+  }, [user]);
 
   useEffect(() => {
     const q = query(collection(db, 'songs'), orderBy('createdAt', 'desc'));
@@ -41,8 +49,28 @@ export default function App() {
       handleFirestoreError(err, OperationType.LIST, 'songs');
     });
 
-    return () => unsubscribe();
+    // Listen to global settings
+    const settingsUnsubscribe = onSnapshot(doc(db, 'config', 'global'), (doc) => {
+      if (doc.exists()) {
+        setPublicSubmissions(doc.data().publicSubmissions ?? true);
+      }
+    });
+
+    return () => {
+      unsubscribe();
+      settingsUnsubscribe();
+    };
   }, []);
+
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+    }
+  }, [isDarkMode]);
 
   const filteredSongs = useMemo(() => {
     return songs.filter(song => {
@@ -57,6 +85,10 @@ export default function App() {
 
   const handleSubmitSong = async (songData: { title: string; songNo: number; genre: string; lyrics: string }) => {
     if (!user) return;
+    if (!publicSubmissions && !isAdmin) {
+      alert("Submissions are currently restricted to administrators.");
+      return;
+    }
     
     try {
       await addDoc(collection(db, 'songs'), {
@@ -71,7 +103,7 @@ export default function App() {
 
   if (loading && isInitialLoading) {
     return (
-      <div className="flex h-screen w-full items-center justify-center bg-slate-50">
+      <div className="flex h-screen w-full items-center justify-center bg-slate-50 dark:bg-slate-950">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="h-10 w-10 animate-spin text-brand-600" />
           <p className="text-sm font-medium text-slate-500">Loading ECI Song Book...</p>
@@ -82,12 +114,13 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-      <div className="min-h-screen bg-slate-50 pb-20">
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-20 transition-colors duration-300">
         <Navbar 
           user={user} 
           onLogin={loginWithGoogle} 
           onLogout={logout} 
-          onAddSong={() => setIsSubmitOpen(true)} 
+          onAddSong={() => setIsSubmitOpen(true)}
+          onOpenSettings={() => setIsSettingsOpen(true)}
         />
 
         <main className="container mx-auto px-4 py-12">
@@ -98,10 +131,10 @@ export default function App() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5 }}
             >
-              <h1 className="mb-4 text-3xl font-bold tracking-tight text-slate-900 sm:text-6xl font-serif">
+              <h1 className="mb-4 text-3xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-6xl font-serif">
                 Every Song Has a <span className="text-brand-600 italic">Story</span>.
               </h1>
-              <p className="mx-auto mb-10 max-w-2xl text-lg text-slate-500">
+              <p className="mx-auto mb-10 max-w-2xl text-lg text-slate-500 dark:text-slate-400">
                 Explore thousands of lyrics, submit your own favorites, and download them as beautiful PDF or PPT presentations.
               </p>
             </motion.div>
@@ -118,7 +151,7 @@ export default function App() {
           {/* Songs Grid */}
           <section>
             <div className="mb-8 flex items-center justify-between">
-              <h2 className="text-2xl font-bold text-slate-900">
+              <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
                 {searchQuery ? 'Search Results' : 'Recent Submissions'}
               </h2>
               <span className="text-sm text-slate-500">{filteredSongs.length} songs found</span>
@@ -143,12 +176,12 @@ export default function App() {
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-20 text-center">
-                <div className="mb-4 rounded-full bg-slate-100 p-6">
-                  <Music2 className="h-10 w-10 text-slate-300" />
+                <div className="mb-4 rounded-full bg-slate-100 dark:bg-slate-900 p-6">
+                  <Music2 className="h-10 w-10 text-slate-300 dark:text-slate-700" />
                 </div>
-                <h3 className="text-xl font-semibold text-slate-900">No songs found</h3>
+                <h3 className="text-xl font-semibold text-slate-900 dark:text-white">No songs found</h3>
                 <p className="text-slate-500">Try adjusting your search or be the first to submit this song!</p>
-                {user && (
+                {user && (publicSubmissions || isAdmin) && (
                   <Button 
                     onClick={() => setIsSubmitOpen(true)} 
                     className="mt-6 gap-2 bg-brand-600"
@@ -174,8 +207,16 @@ export default function App() {
           onSubmit={handleSubmitSong} 
         />
 
+        <SettingsDialog 
+          isOpen={isSettingsOpen}
+          onClose={() => setIsSettingsOpen(false)}
+          isDarkMode={isDarkMode}
+          toggleDarkMode={() => setIsDarkMode(!isDarkMode)}
+          isAdmin={isAdmin}
+        />
+
         {/* Floating Action Button for Mobile */}
-        {user && (
+        {user && (publicSubmissions || isAdmin) && (
           <Button
             onClick={() => setIsSubmitOpen(true)}
             className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-2xl sm:hidden bg-brand-600"

@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface SubmitSongDialogProps {
   isOpen: boolean;
@@ -35,62 +36,69 @@ export function SubmitSongDialog({ isOpen, onClose, onSubmit }: SubmitSongDialog
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[550px] p-0 overflow-hidden rounded-3xl max-h-[90vh] flex flex-col">
-        <DialogHeader className="p-6 pb-2">
-          <DialogTitle className="text-2xl font-bold">Submit New Lyrics</DialogTitle>
-          <DialogDescription>
+      <DialogContent className="sm:max-w-[550px] p-0 overflow-hidden rounded-3xl max-h-[90vh] flex flex-col dark:bg-slate-950 dark:border-slate-800">
+        <DialogHeader className="p-6 pb-2 shrink-0">
+          <DialogTitle className="text-2xl font-bold dark:text-white">Submit New Lyrics</DialogTitle>
+          <DialogDescription className="dark:text-slate-400">
             Share your favorite song lyrics with the community.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
-          <div className="flex-1 overflow-y-auto px-6 py-2 space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <div className="flex-1 overflow-y-auto px-6">
+            <div className="py-4 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="title" className="dark:text-slate-300">Song Title</Label>
+                  <Input 
+                    id="title" 
+                    placeholder="e.g. Bohemian Rhapsody" 
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    required
+                    className="dark:bg-slate-900 dark:border-slate-800 dark:text-white"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="songNo" className="dark:text-slate-300">Song Number</Label>
+                  <Input 
+                    id="songNo" 
+                    type="number" 
+                    placeholder="e.g. 101" 
+                    value={songNo}
+                    onChange={(e) => setSongNo(e.target.value)}
+                    required
+                    className="dark:bg-slate-900 dark:border-slate-800 dark:text-white"
+                  />
+                </div>
+              </div>
               <div className="space-y-2">
-                <Label htmlFor="title">Song Title</Label>
+                <Label htmlFor="genre" className="dark:text-slate-300">Genre</Label>
                 <Input 
-                  id="title" 
-                  placeholder="e.g. Bohemian Rhapsody" 
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
+                  id="genre" 
+                  placeholder="e.g. Rock, Pop, Jazz" 
+                  value={genre}
+                  onChange={(e) => setGenre(e.target.value)}
                   required
+                  className="dark:bg-slate-900 dark:border-slate-800 dark:text-white"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="songNo">Song Number</Label>
-                <Input 
-                  id="songNo" 
-                  type="number" 
-                  placeholder="e.g. 101" 
-                  value={songNo}
-                  onChange={(e) => setSongNo(e.target.value)}
+                <Label htmlFor="lyrics" className="dark:text-slate-300">Lyrics</Label>
+                <Textarea 
+                  id="lyrics" 
+                  placeholder="Paste the lyrics here..." 
+                  className="min-h-[300px] font-serif resize-none dark:bg-slate-900 dark:border-slate-800 dark:text-white"
+                  value={lyrics}
+                  onChange={(e) => setLyrics(e.target.value)}
                   required
                 />
               </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="genre">Genre</Label>
-              <Input 
-                id="genre" 
-                placeholder="e.g. Rock, Pop, Jazz" 
-                value={genre}
-                onChange={(e) => setGenre(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="lyrics">Lyrics</Label>
-              <Textarea 
-                id="lyrics" 
-                placeholder="Paste the lyrics here..." 
-                className="min-h-[200px] font-serif"
-                value={lyrics}
-                onChange={(e) => setLyrics(e.target.value)}
-                required
-              />
             </div>
           </div>
-          <DialogFooter className="p-6 pt-4 border-t bg-slate-50/50">
-            <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
+          
+          <DialogFooter className="p-6 pt-4 border-t bg-slate-50/50 dark:bg-slate-900/50 dark:border-slate-800 shrink-0">
+            <Button type="button" variant="ghost" onClick={onClose} className="dark:text-slate-400 dark:hover:text-white">Cancel</Button>
             <Button type="submit" className="bg-brand-600 hover:bg-brand-700">Submit Song</Button>
           </DialogFooter>
         </form>

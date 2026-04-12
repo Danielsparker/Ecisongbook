@@ -1,4 +1,4 @@
-import { Music, Search, Plus, LogIn, LogOut, User } from 'lucide-react';
+import { Music, Search, Plus, LogIn, LogOut, User, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface NavbarProps {
@@ -6,28 +6,33 @@ interface NavbarProps {
   onLogin: () => void;
   onLogout: () => void;
   onAddSong: () => void;
+  onOpenSettings: () => void;
 }
 
-export function Navbar({ user, onLogin, onLogout, onAddSong }: NavbarProps) {
+export function Navbar({ user, onLogin, onLogout, onAddSong, onOpenSettings }: NavbarProps) {
   return (
-    <nav className="sticky top-0 z-50 w-full border-b bg-white/80 backdrop-blur-md">
+    <nav className="sticky top-0 z-50 w-full border-b bg-white/80 dark:bg-slate-950/80 backdrop-blur-md">
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
         <div className="flex items-center gap-2">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-500 text-white shadow-lg shadow-brand-500/20">
             <Music className="h-6 w-6" />
           </div>
-          <span className="text-xl font-bold tracking-tight text-slate-900">ECI Song Book</span>
+          <span className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">ECI Song Book</span>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 sm:gap-4">
+          <Button variant="ghost" size="icon" onClick={onOpenSettings} className="rounded-full">
+            <Settings className="h-5 w-5 text-slate-500" />
+          </Button>
+          
           {user ? (
             <>
-              <Button variant="outline" size="sm" onClick={onAddSong} className="hidden sm:flex gap-2">
+              <Button variant="outline" size="sm" onClick={onAddSong} className="hidden sm:flex gap-2 rounded-xl">
                 <Plus className="h-4 w-4" /> Submit Lyrics
               </Button>
-              <div className="flex items-center gap-3 pl-2 border-l">
+              <div className="flex items-center gap-3 pl-2 border-l border-slate-200 dark:border-slate-800">
                 <div className="flex flex-col items-end hidden md:flex">
-                  <span className="text-sm font-medium">{user.displayName}</span>
+                  <span className="text-sm font-medium dark:text-slate-200">{user.displayName}</span>
                   <span className="text-xs text-slate-500">{user.email}</span>
                 </div>
                 <Button variant="ghost" size="icon" onClick={onLogout} className="rounded-full">
@@ -36,7 +41,7 @@ export function Navbar({ user, onLogin, onLogout, onAddSong }: NavbarProps) {
               </div>
             </>
           ) : (
-            <Button onClick={onLogin} className="gap-2 bg-brand-600 hover:bg-brand-700">
+            <Button onClick={onLogin} className="gap-2 bg-brand-600 hover:bg-brand-700 rounded-xl">
               <LogIn className="h-4 w-4" /> Sign In
             </Button>
           )}
