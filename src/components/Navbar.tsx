@@ -7,9 +7,10 @@ interface NavbarProps {
   onLogout: () => void;
   onAddSong: () => void;
   onOpenSettings: () => void;
+  canSubmit: boolean;
 }
 
-export function Navbar({ user, onLogin, onLogout, onAddSong, onOpenSettings }: NavbarProps) {
+export function Navbar({ user, onLogin, onLogout, onAddSong, onOpenSettings, canSubmit }: NavbarProps) {
   return (
     <nav className="sticky top-0 z-50 w-full border-b bg-white/80 dark:bg-slate-950/80 backdrop-blur-md">
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
@@ -27,9 +28,11 @@ export function Navbar({ user, onLogin, onLogout, onAddSong, onOpenSettings }: N
           
           {user ? (
             <>
-              <Button variant="outline" size="sm" onClick={onAddSong} className="hidden sm:flex gap-2 rounded-xl">
-                <Plus className="h-4 w-4" /> Submit Lyrics
-              </Button>
+              {canSubmit && (
+                <Button variant="outline" size="sm" onClick={onAddSong} className="hidden sm:flex gap-2 rounded-xl">
+                  <Plus className="h-4 w-4" /> Submit Lyrics
+                </Button>
+              )}
               <div className="flex items-center gap-3 pl-2 border-l border-slate-200 dark:border-slate-800">
                 <div className="flex flex-col items-end hidden md:flex">
                   <span className="text-sm font-medium dark:text-slate-200">{user.displayName}</span>

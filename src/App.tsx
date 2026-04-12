@@ -22,6 +22,7 @@ import { Button } from '@/components/ui/button';
 
 export default function App() {
   const [user, loading] = useAuthState(auth);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const [songs, setSongs] = useState<Song[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSong, setSelectedSong] = useState<Song | null>(null);
@@ -32,7 +33,26 @@ export default function App() {
   const [publicSubmissions, setPublicSubmissions] = useState(true);
 
   const isAdmin = useMemo(() => {
-    return user?.email === "danieldec996@gmail.com";
+    return user?.email === "danieldec996@gmail.com" || userRole === 'admin';
+  }, [user, userRole]);
+
+  const canSubmit = useMemo(() => {
+    if (publicSubmissions) return true;
+    return isAdmin || userRole === 'contributor';
+  }, [publicSubmissions, isAdmin, userRole]);
+
+  useEffect(() => {
+    if (user) {
+      const userRef = doc(db, 'users', user.uid);
+      const unsubscribeUser = onSnapshot(userRef, (doc) => {
+        if (doc.exists()) {
+          setUserRole(doc.data().role);
+        }
+      });
+      return () => unsubscribeUser();
+    } else {
+      setUserRole(null);
+    }
   }, [user]);
 
   useEffect(() => {
@@ -85,8 +105,8 @@ export default function App() {
 
   const handleSubmitSong = async (songData: { title: string; songNo: number; genre: string; lyrics: string }) => {
     if (!user) return;
-    if (!publicSubmissions && !isAdmin) {
-      alert("Submissions are currently restricted to administrators.");
+    if (!canSubmit) {
+      alert("Submissions are currently restricted to authorized contributors.");
       return;
     }
     
@@ -121,6 +141,7 @@ export default function App() {
           onLogout={logout} 
           onAddSong={() => setIsSubmitOpen(true)}
           onOpenSettings={() => setIsSettingsOpen(true)}
+          canSubmit={canSubmit}
         />
 
         <main className="container mx-auto px-4 py-12">
@@ -181,7 +202,7 @@ export default function App() {
                 </div>
                 <h3 className="text-xl font-semibold text-slate-900 dark:text-white">No songs found</h3>
                 <p className="text-slate-500">Try adjusting your search or be the first to submit this song!</p>
-                {user && (publicSubmissions || isAdmin) && (
+                {user && canSubmit && (
                   <Button 
                     onClick={() => setIsSubmitOpen(true)} 
                     className="mt-6 gap-2 bg-brand-600"
@@ -216,7 +237,7 @@ export default function App() {
         />
 
         {/* Floating Action Button for Mobile */}
-        {user && (publicSubmissions || isAdmin) && (
+        {user && canSubmit && (
           <Button
             onClick={() => setIsSubmitOpen(true)}
             className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-2xl sm:hidden bg-brand-600"
