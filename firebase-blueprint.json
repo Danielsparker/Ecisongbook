@@ -1,0 +1,59 @@
+{
+  "entities": {
+    "Song": {
+      "title": "Song",
+      "description": "A song with lyrics and metadata.",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "The title of the song."
+        },
+        "songNo": {
+          "type": "number",
+          "description": "The unique song number."
+        },
+        "genre": {
+          "type": "string",
+          "description": "The genre of the song."
+        },
+        "lyrics": {
+          "type": "string",
+          "description": "The full lyrics of the song."
+        },
+        "submittedBy": {
+          "type": "string",
+          "description": "The UID of the user who submitted the song."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the song was added."
+        }
+      },
+      "required": ["title", "songNo", "genre", "lyrics", "submittedBy", "createdAt"]
+    },
+    "User": {
+      "title": "User",
+      "description": "User profile information.",
+      "type": "object",
+      "properties": {
+        "displayName": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "photoURL": { "type": "string" },
+        "role": { "type": "string", "enum": ["user", "admin"] }
+      },
+      "required": ["displayName", "email", "role"]
+    }
+  },
+  "firestore": {
+    "/songs/{songId}": {
+      "schema": "Song",
+      "description": "Collection of all songs."
+    },
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile documents."
+    }
+  }
+}
