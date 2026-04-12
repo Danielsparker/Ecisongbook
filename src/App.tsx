@@ -38,8 +38,31 @@ export default function App() {
 
   const canSubmit = useMemo(() => {
     if (publicSubmissions) return true;
-    return isAdmin || userRole === 'contributor';
-  }, [publicSubmissions, isAdmin, userRole]);
+    if (!user) return false; // If public is off, hide until they sign in to check role
+    return isAdmin || userRole === 'contributor' || userRole === 'viewer';
+  }, [publicSubmissions, isAdmin, userRole, user]);
+
+  const handleAddSongClick = async () => {
+    if (!user) {
+      try {
+        const loggedInUser = await loginWithGoogle();
+        if (loggedInUser) {
+          // After login, we need to check if they actually have permission
+          // publicSubmissions is already being synced via onSnapshot
+          // But we might need to wait for the user role to sync
+          setIsSubmitOpen(true);
+        }
+      } catch (error) {
+        console.error("Login failed:", error);
+      }
+    } else {
+      if (!canSubmit) {
+        alert("Submissions are currently restricted to authorized contributors. Please contact the administrator for access.");
+        return;
+      }
+      setIsSubmitOpen(true);
+    }
+  };
 
   useEffect(() => {
     if (user) {
@@ -139,7 +162,7 @@ export default function App() {
           user={user} 
           onLogin={loginWithGoogle} 
           onLogout={logout} 
-          onAddSong={() => setIsSubmitOpen(true)}
+          onAddSong={handleAddSongClick}
           onOpenSettings={() => setIsSettingsOpen(true)}
           canSubmit={canSubmit}
         />
@@ -202,14 +225,12 @@ export default function App() {
                 </div>
                 <h3 className="text-xl font-semibold text-slate-900 dark:text-white">No songs found</h3>
                 <p className="text-slate-500">Try adjusting your search or be the first to submit this song!</p>
-                {user && canSubmit && (
-                  <Button 
-                    onClick={() => setIsSubmitOpen(true)} 
-                    className="mt-6 gap-2 bg-brand-600"
-                  >
-                    <Plus className="h-4 w-4" /> Submit Lyrics
-                  </Button>
-                )}
+                <Button 
+                  onClick={handleAddSongClick} 
+                  className="mt-6 gap-2 bg-brand-600"
+                >
+                  <Plus className="h-4 w-4" /> Submit Lyrics
+                </Button>
               </div>
             )}
           </section>
@@ -237,15 +258,13 @@ export default function App() {
         />
 
         {/* Floating Action Button for Mobile */}
-        {user && canSubmit && (
-          <Button
-            onClick={() => setIsSubmitOpen(true)}
-            className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-2xl sm:hidden bg-brand-600"
-            size="icon"
-          >
-            <Plus className="h-6 w-6" />
-          </Button>
-        )}
+        <Button
+          onClick={handleAddSongClick}
+          className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-2xl sm:hidden bg-brand-600"
+          size="icon"
+        >
+          <Plus className="h-6 w-6" />
+        </Button>
       </div>
     </ErrorBoundary>
   );

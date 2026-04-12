@@ -18,7 +18,7 @@
 //   - displayName: string (required)
 //   - email: string (required)
 //   - photoURL: string (optional)
-//   - role: string (required, enum: ['user', 'admin', 'contributor'])
+//   - role: string (required, enum: ['user', 'admin', 'contributor', 'viewer'])
 //   - createdAt: timestamp (required)
 //
 // ===============================================================
@@ -51,7 +51,7 @@ service cloud.firestore {
       return data.keys().hasOnly(['displayName', 'email', 'photoURL', 'role', 'createdAt']) &&
              data.displayName is string && data.displayName.size() > 0 && data.displayName.size() < 100 &&
              data.email is string && isValidEmail(data.email) &&
-             data.role in ['user', 'admin', 'contributor'] &&
+             data.role in ['user', 'admin', 'contributor', 'viewer'] &&
              data.createdAt is timestamp;
     }
 
@@ -73,7 +73,8 @@ service cloud.firestore {
 
     function isContributor() {
       return isAuthenticated() && 
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'contributor';
+             (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'contributor' ||
+              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'viewer');
     }
 
     // ===============================================================

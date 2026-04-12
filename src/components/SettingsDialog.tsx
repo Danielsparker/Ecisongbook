@@ -49,12 +49,13 @@ export function SettingsDialog({ isOpen, onClose, isDarkMode, toggleDarkMode, is
   const fetchContributors = async () => {
     try {
       const usersRef = collection(db, 'users');
-      const q = query(usersRef, where('role', '==', 'contributor'));
+      const q = query(usersRef, where('role', 'in', ['contributor', 'viewer']));
       const querySnapshot = await getDocs(q);
       const list = querySnapshot.docs.map(doc => ({
         id: doc.id,
         email: doc.data().email,
-        displayName: doc.data().displayName
+        displayName: doc.data().displayName,
+        role: doc.data().role
       }));
       setContributors(list);
     } catch (error) {
@@ -255,7 +256,12 @@ export function SettingsDialog({ isOpen, onClose, isDarkMode, toggleDarkMode, is
                     contributors.map(contributor => (
                       <div key={contributor.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800">
                         <div className="min-w-0">
-                          <p className="text-sm font-medium dark:text-white truncate">{contributor.displayName}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-medium dark:text-white truncate">{contributor.displayName}</p>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 uppercase font-bold">
+                              {contributor.role}
+                            </span>
+                          </div>
                           <p className="text-xs text-slate-500 truncate">{contributor.email}</p>
                         </div>
                         <Button 

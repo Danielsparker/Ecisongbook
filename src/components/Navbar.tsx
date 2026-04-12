@@ -22,27 +22,30 @@ export function Navbar({ user, onLogin, onLogout, onAddSong, onOpenSettings, can
         </div>
 
         <div className="flex items-center gap-2 sm:gap-4">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={onAddSong} 
+            className="flex gap-2 rounded-xl border-brand-200 dark:border-slate-800 hover:bg-brand-50 dark:hover:bg-slate-900"
+          >
+            <Plus className="h-4 w-4 text-brand-600" /> 
+            <span className="dark:text-slate-200">Submit Lyrics</span>
+          </Button>
+
           <Button variant="ghost" size="icon" onClick={onOpenSettings} className="rounded-full">
             <Settings className="h-5 w-5 text-slate-500" />
           </Button>
           
           {user ? (
-            <>
-              {canSubmit && (
-                <Button variant="outline" size="sm" onClick={onAddSong} className="hidden sm:flex gap-2 rounded-xl">
-                  <Plus className="h-4 w-4" /> Submit Lyrics
-                </Button>
-              )}
-              <div className="flex items-center gap-3 pl-2 border-l border-slate-200 dark:border-slate-800">
-                <div className="flex flex-col items-end hidden md:flex">
-                  <span className="text-sm font-medium dark:text-slate-200">{user.displayName}</span>
-                  <span className="text-xs text-slate-500">{user.email}</span>
-                </div>
-                <Button variant="ghost" size="icon" onClick={onLogout} className="rounded-full">
-                  <LogOut className="h-5 w-5 text-slate-500" />
-                </Button>
+            <div className="flex items-center gap-3 pl-2 border-l border-slate-200 dark:border-slate-800">
+              <div className="flex flex-col items-end hidden md:flex">
+                <span className="text-sm font-medium dark:text-slate-200">{user.displayName}</span>
+                <span className="text-xs text-slate-500">{user.email}</span>
               </div>
-            </>
+              <Button variant="ghost" size="icon" onClick={onLogout} className="rounded-full">
+                <LogOut className="h-5 w-5 text-slate-500" />
+              </Button>
+            </div>
           ) : (
             <Button onClick={onLogin} className="gap-2 bg-brand-600 hover:bg-brand-700 rounded-xl">
               <LogIn className="h-4 w-4" /> Sign In
