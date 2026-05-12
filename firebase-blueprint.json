@@ -41,7 +41,7 @@
         "displayName": { "type": "string" },
         "email": { "type": "string", "format": "email" },
         "photoURL": { "type": "string" },
-        "role": { "type": "string", "enum": ["user", "admin"] }
+        "role": { "type": "string", "enum": ["user", "contributor", "admin"] }
       },
       "required": ["displayName", "email", "role"]
     }

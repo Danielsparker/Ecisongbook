@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, browserPopupRedirectResolver } from 'firebase/auth';
 import { getFirestore, collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, doc, getDoc, setDoc } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
@@ -8,9 +8,17 @@ export const auth = getAuth(app);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const googleProvider = new GoogleAuthProvider();
 
+let loginInProgress = false;
+
 export const loginWithGoogle = async () => {
+  if (loginInProgress) {
+    console.warn("Login already in progress");
+    return;
+  }
+  
+  loginInProgress = true;
   try {
-    const result = await signInWithPopup(auth, googleProvider);
+    const result = await signInWithPopup(auth, googleProvider, browserPopupRedirectResolver);
     const user = result.user;
     
     // Create/Update user profile
@@ -27,9 +35,19 @@ export const loginWithGoogle = async () => {
       });
     }
     return user;
-  } catch (error) {
-    console.error("Login failed:", error);
+  } catch (error: any) {
+    if (error.code === 'auth/popup-blocked') {
+      alert("The login popup was blocked by your browser. Please allow popups for this site and try again.");
+    } else if (error.code === 'auth/cancelled-popup-request') {
+      console.log("A previous login request was cancelled.");
+    } else if (error.code === 'auth/popup-closed-by-user') {
+      console.log("Login popup closed by user.");
+    } else {
+      console.error("Login failed:", error);
+    }
     throw error;
+  } finally {
+    loginInProgress = false;
   }
 };
 
