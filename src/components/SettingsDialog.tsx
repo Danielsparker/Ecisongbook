@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Moon, Sun, Users, Shield, Info, Share2, Bell, ChevronLeft, Plus, Trash2, Search } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Settings, Moon, Sun, Users, Shield, Info, Share2, Bell, ChevronLeft, Plus, Trash2, Search, Database, Upload, Download, Loader2 } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
-import { doc, getDoc, setDoc, collection, query, where, getDocs, updateDoc } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { Textarea } from '@/components/ui/textarea';
+import { doc, getDoc, setDoc, collection, query, where, getDocs, updateDoc, writeBatch, serverTimestamp } from 'firebase/firestore';
+import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 
 interface SettingsDialogProps {
   isOpen: boolean;
@@ -15,14 +16,15 @@ interface SettingsDialogProps {
   isDarkMode: boolean;
   toggleDarkMode: () => void;
   isAdmin: boolean;
+  onImportComplete?: () => void;
 }
 
-export function SettingsDialog({ isOpen, onClose, isDarkMode, toggleDarkMode, isAdmin }: SettingsDialogProps) {
+export function SettingsDialog({ isOpen, onClose, isDarkMode, toggleDarkMode, isAdmin, onImportComplete }: SettingsDialogProps) {
   const [publicSubmissions, setPublicSubmissions] = useState(true);
   const [loading, setLoading] = useState(false);
   const [view, setView] = useState<'main' | 'contributors'>('main');
   const [contributorEmail, setContributorEmail] = useState('');
-  const [contributors, setContributors] = useState<{ id: string; email: string; displayName: string }[]>([]);
+  const [contributors, setContributors] = useState<{ id: string; email: string; displayName: string; role: string }[]>([]);
   const [actionLoading, setActionLoading] = useState(false);
 
   useEffect(() => {

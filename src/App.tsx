@@ -29,6 +29,7 @@ export default function App() {
   const [isSubmitOpen, setIsSubmitOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
   const [publicSubmissions, setPublicSubmissions] = useState(true);
 
@@ -38,11 +39,11 @@ export default function App() {
 
   const canSubmit = useMemo(() => {
     if (publicSubmissions) return true;
-    if (!user) return false; // If public is off, hide until they sign in to check role
+    if (!user) return false;
     return isAdmin || userRole === 'contributor' || userRole === 'viewer';
   }, [publicSubmissions, isAdmin, userRole, user]);
 
-  const handleAddSongClick = () => {
+  const handleAddClick = () => {
     if (!canSubmit) {
       alert("Submissions are currently restricted to authorized contributors. Please contact the administrator for access.");
       return;
@@ -65,9 +66,9 @@ export default function App() {
   }, [user]);
 
   useEffect(() => {
-    const q = query(collection(db, 'songs'), orderBy('createdAt', 'desc'));
-    
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    // Songs Listener
+    const qSongs = query(collection(db, 'songs'), orderBy('createdAt', 'desc'));
+    const unsubscribeSongs = onSnapshot(qSongs, (snapshot) => {
       const songsData = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
@@ -86,7 +87,7 @@ export default function App() {
     });
 
     return () => {
-      unsubscribe();
+      unsubscribeSongs();
       settingsUnsubscribe();
     };
   }, []);
@@ -129,6 +130,16 @@ export default function App() {
     }
   };
 
+  const handleLogin = async () => {
+    setIsLoggingIn(true);
+    try {
+      await loginWithGoogle();
+    } catch (err: any) {
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
   if (loading && isInitialLoading) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-slate-50 dark:bg-slate-950">
@@ -145,11 +156,12 @@ export default function App() {
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-20 transition-colors duration-300">
         <Navbar 
           user={user} 
-          onLogin={loginWithGoogle} 
+          onLogin={handleLogin} 
           onLogout={logout} 
-          onAddSong={handleAddSongClick}
+          onAddSong={handleAddClick}
           onOpenSettings={() => setIsSettingsOpen(true)}
           canSubmit={canSubmit}
+          isLoggingIn={isLoggingIn}
         />
 
         <main className="container mx-auto px-4 py-12">
@@ -161,7 +173,7 @@ export default function App() {
               transition={{ duration: 0.5 }}
             >
               <h1 className="mb-4 text-3xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-6xl font-serif">
-                Every Song Has a <span className="text-brand-600 italic">Story</span>.
+                Every <span className="text-brand-600 italic">Song</span> Has a Story.
               </h1>
               <p className="mx-auto mb-10 max-w-2xl text-lg text-slate-500 dark:text-slate-400">
                 Explore thousands of lyrics, submit your own favorites, and download them as beautiful PDF or PPT presentations.
@@ -172,52 +184,67 @@ export default function App() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 0.2, duration: 0.5 }}
+              className="flex flex-col items-center gap-8"
             >
-              <SongSearch value={searchQuery} onChange={setSearchQuery} />
+              <SongSearch 
+                value={searchQuery} 
+                onChange={setSearchQuery} 
+                placeholder="Search for songs, numbers or genre..."
+              />
             </motion.div>
           </section>
 
-          {/* Songs Grid */}
+          {/* Grid Section */}
           <section>
             <div className="mb-8 flex items-center justify-between">
               <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
-                {searchQuery ? 'Search Results' : 'Recent Submissions'}
+                {searchQuery ? 'Search Results' : 'Recent Songs'}
               </h2>
-              <span className="text-sm text-slate-500">{filteredSongs.length} songs found</span>
+              <span className="text-sm text-slate-500">
+                {filteredSongs.length} songs found
+              </span>
             </div>
 
-            {filteredSongs.length > 0 ? (
-              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                <AnimatePresence mode="popLayout">
-                  {filteredSongs.map((song) => (
-                    <motion.div
-                      key={song.id}
-                      layout
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.9 }}
-                      transition={{ duration: 0.2 }}
+            <AnimatePresence mode="wait">
+              <motion.div
+                key="songs"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.3 }}
+              >
+                {filteredSongs.length > 0 ? (
+                  <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                    {filteredSongs.map((song) => (
+                      <motion.div
+                        key={song.id}
+                        layout
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.9 }}
+                        transition={{ duration: 0.2 }}
+                      >
+                        <SongCard song={song} onView={setSelectedSong} />
+                      </motion.div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-20 text-center">
+                    <div className="mb-4 rounded-full bg-slate-100 dark:bg-slate-900 p-6">
+                      <Music2 className="h-10 w-10 text-slate-300 dark:text-slate-700" />
+                    </div>
+                    <h3 className="text-xl font-semibold text-slate-900 dark:text-white">No songs found</h3>
+                    <p className="text-slate-500">Try adjusting your search or be the first to submit this song!</p>
+                    <Button 
+                      onClick={handleAddClick} 
+                      className="mt-6 gap-2 bg-brand-600"
                     >
-                      <SongCard song={song} onView={setSelectedSong} />
-                    </motion.div>
-                  ))}
-                </AnimatePresence>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center py-20 text-center">
-                <div className="mb-4 rounded-full bg-slate-100 dark:bg-slate-900 p-6">
-                  <Music2 className="h-10 w-10 text-slate-300 dark:text-slate-700" />
-                </div>
-                <h3 className="text-xl font-semibold text-slate-900 dark:text-white">No songs found</h3>
-                <p className="text-slate-500">Try adjusting your search or be the first to submit this song!</p>
-                <Button 
-                  onClick={handleAddSongClick} 
-                  className="mt-6 gap-2 bg-brand-600"
-                >
-                  <Plus className="h-4 w-4" /> Submit Lyrics
-                </Button>
-              </div>
-            )}
+                      <Plus className="h-4 w-4" /> Submit Lyrics
+                    </Button>
+                  </div>
+                )}
+              </motion.div>
+            </AnimatePresence>
           </section>
         </main>
 
@@ -244,7 +271,7 @@ export default function App() {
 
         {/* Floating Action Button for Mobile */}
         <Button
-          onClick={handleAddSongClick}
+          onClick={handleAddClick}
           className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-2xl sm:hidden bg-brand-600"
           size="icon"
         >
@@ -254,4 +281,5 @@ export default function App() {
     </ErrorBoundary>
   );
 }
+
 

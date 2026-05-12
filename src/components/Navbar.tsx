@@ -1,4 +1,4 @@
-import { Music, Search, Plus, LogIn, LogOut, User, Settings } from 'lucide-react';
+import { Music, Search, Plus, LogIn, LogOut, User, Settings, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface NavbarProps {
@@ -8,9 +8,10 @@ interface NavbarProps {
   onAddSong: () => void;
   onOpenSettings: () => void;
   canSubmit: boolean;
+  isLoggingIn?: boolean;
 }
 
-export function Navbar({ user, onLogin, onLogout, onAddSong, onOpenSettings, canSubmit }: NavbarProps) {
+export function Navbar({ user, onLogin, onLogout, onAddSong, onOpenSettings, canSubmit, isLoggingIn }: NavbarProps) {
   return (
     <nav className="sticky top-0 z-50 w-full border-b bg-white/80 dark:bg-slate-950/80 backdrop-blur-md">
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
@@ -47,8 +48,21 @@ export function Navbar({ user, onLogin, onLogout, onAddSong, onOpenSettings, can
               </Button>
             </div>
           ) : (
-            <Button onClick={onLogin} className="gap-2 bg-brand-600 hover:bg-brand-700 rounded-xl">
-              <LogIn className="h-4 w-4" /> Sign In
+            <Button 
+              onClick={onLogin} 
+              disabled={isLoggingIn}
+              className="gap-2 bg-brand-600 hover:bg-brand-700 rounded-xl"
+            >
+              {isLoggingIn ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Connecting...
+                </>
+              ) : (
+                <>
+                  <LogIn className="h-4 w-4" /> Sign In
+                </>
+              )}
             </Button>
           )}
         </div>
