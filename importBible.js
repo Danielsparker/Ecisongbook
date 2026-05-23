@@ -7,7 +7,7 @@ const supabase = createClient(
 )
 
 const data = JSON.parse(
-  fs.readFileSync('./genesis.json', 'utf8')
+  fs.readFileSync('./John.json','utf8')
 )
 
 async function uploadBible() {
