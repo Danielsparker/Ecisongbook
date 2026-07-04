@@ -7,9 +7,10 @@ import { Song } from '../types';
 interface SongCardProps {
   song: Song;
   onView: (song: Song) => void;
+  onPresent: (song: Song) => void;
 }
 
-export function SongCard({ song, onView }: SongCardProps) {
+export function SongCard({ song, onView, onPresent }: SongCardProps) {
   return (
     <Card className="group overflow-hidden transition-all hover:shadow-md border-slate-200 dark:border-slate-800 dark:bg-slate-900/50">
       <CardHeader className="pb-2">
@@ -30,14 +31,26 @@ export function SongCard({ song, onView }: SongCardProps) {
           {song.lyrics.substring(0, 120)}...
         </p>
       </CardContent>
-      <CardFooter className="pt-0">
+      <CardFooter className="pt-0 flex gap-2">
         <Button 
           variant="ghost" 
-          className="w-full justify-between text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 hover:bg-brand-50 dark:hover:bg-brand-900/20"
+          className="flex-1 justify-between text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 hover:bg-brand-50 dark:hover:bg-brand-900/20"
           onClick={() => onView(song)}
         >
           View Lyrics
           <ChevronRight className="h-4 w-4" />
+        </Button>
+        <Button 
+          variant="outline"
+          size="icon"
+          title="Present Live"
+          className="h-10 w-10 shrink-0 rounded-xl border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-950"
+          onClick={(e) => {
+            e.stopPropagation();
+            onPresent(song);
+          }}
+        >
+          <Presentation className="h-4.5 w-4.5 text-brand-600 dark:text-brand-400" />
         </Button>
       </CardFooter>
     </Card>

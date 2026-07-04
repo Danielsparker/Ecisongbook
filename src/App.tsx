@@ -7,25 +7,33 @@ import { useState, useEffect, useMemo } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
-import { Music2, Loader2, Plus } from 'lucide-react';
+import { Music2, Loader2, Plus, BookOpen } from 'lucide-react';
 
 import { auth, db, loginWithGoogle, logout, handleFirestoreError, OperationType } from './lib/firebase';
 import { Song } from './types';
 import { Navbar } from './components/Navbar';
 import { SongSearch } from './components/SongSearch';
 import { SongCard } from './components/SongCard';
+import { BibleReader } from './components/BibleReader';
 import { LyricsModal } from './components/LyricsModal';
 import { SubmitSongDialog } from './components/SubmitSongDialog';
 import { SettingsDialog } from './components/SettingsDialog';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Button } from '@/components/ui/button';
+import { PresentationWindow } from './components/PresentationWindow';
+import { PresenterControl } from './components/PresenterControl';
 
 export default function App() {
+  const urlParams = useMemo(() => new URLSearchParams(window.location.search), []);
+  const isPresentationMode = useMemo(() => urlParams.get('mode') === 'presentation', [urlParams]);
+
   const [user, loading] = useAuthState(auth);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [songs, setSongs] = useState<Song[]>([]);
+  const [activeTab, setActiveTab] = useState<'songs' | 'bible'>('songs');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSong, setSelectedSong] = useState<Song | null>(null);
+  const [presenterActiveSong, setPresenterActiveSong] = useState<Song | null>(null);
   const [isSubmitOpen, setIsSubmitOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
@@ -69,6 +77,7 @@ export default function App() {
     // Songs Listener
     const qSongs = query(collection(db, 'songs'), orderBy('createdAt', 'desc'));
     const unsubscribeSongs = onSnapshot(qSongs, (snapshot) => {
+      console.log(`Received songs snapshot: ${snapshot.size} songs`);
       const songsData = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
@@ -76,6 +85,7 @@ export default function App() {
       setSongs(songsData);
       setIsInitialLoading(false);
     }, (err) => {
+      console.error("Firestore songs fetch error:", err);
       handleFirestoreError(err, OperationType.LIST, 'songs');
     });
 
@@ -105,10 +115,14 @@ export default function App() {
   const filteredSongs = useMemo(() => {
     return songs.filter(song => {
       const searchLower = searchQuery.toLowerCase();
+      const title = (song.title || "").toLowerCase();
+      const genre = (song.genre || "").toLowerCase();
+      const songNo = (song.songNo !== undefined && song.songNo !== null) ? song.songNo.toString() : "";
+      
       return (
-        song.title.toLowerCase().includes(searchLower) ||
-        song.genre.toLowerCase().includes(searchLower) ||
-        song.songNo.toString().includes(searchLower)
+        title.includes(searchLower) ||
+        genre.includes(searchLower) ||
+        songNo.includes(searchLower)
       );
     });
   }, [songs, searchQuery]);
@@ -140,6 +154,10 @@ export default function App() {
     }
   };
 
+  if (isPresentationMode) {
+    return <PresentationWindow />;
+  }
+
   if (loading && isInitialLoading) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-slate-50 dark:bg-slate-950">
@@ -148,6 +166,17 @@ export default function App() {
           <p className="text-sm font-medium text-slate-500">Loading ECI Song Book...</p>
         </div>
       </div>
+    );
+  }
+
+  if (presenterActiveSong) {
+    return (
+      <PresenterControl 
+        songs={songs} 
+        initialActiveSong={presenterActiveSong} 
+        onExit={() => setPresenterActiveSong(null)} 
+        isDarkMode={isDarkMode}
+      />
     );
   }
 
@@ -173,10 +202,12 @@ export default function App() {
               transition={{ duration: 0.5 }}
             >
               <h1 className="mb-4 text-3xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-6xl font-serif">
-                Every <span className="text-brand-600 italic">Song</span> Has a Story.
+                Every <span className="text-brand-600 italic">{activeTab === 'songs' ? 'Song' : 'Verse'}</span> Has a Story.
               </h1>
               <p className="mx-auto mb-10 max-w-2xl text-lg text-slate-500 dark:text-slate-400">
-                Explore thousands of lyrics, submit your own favorites, and download them as beautiful PDF or PPT presentations.
+                {activeTab === 'songs' 
+                  ? 'Explore thousands of lyrics, submit your own favorites, and download them as beautiful PDF or PPT presentations.'
+                  : 'Discover inspirational Bible verses and wisdom connected via Supabase.'}
               </p>
             </motion.div>
 
@@ -186,10 +217,46 @@ export default function App() {
               transition={{ delay: 0.2, duration: 0.5 }}
               className="flex flex-col items-center gap-8"
             >
+              {/* Tab Switcher */}
+              <div className="flex p-1 bg-slate-100 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-inner">
+                <button
+                  onClick={() => setActiveTab('songs')}
+                  className={`relative flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 ${
+                    activeTab === 'songs' ? 'text-white' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300'
+                  }`}
+                >
+                  {activeTab === 'songs' && (
+                    <motion.div
+                      layoutId="active-tab"
+                      className="absolute inset-0 bg-brand-600 rounded-xl shadow-lg shadow-brand-500/20"
+                      transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                    />
+                  )}
+                  <Music2 className={`relative z-10 h-4 w-4 ${activeTab === 'songs' ? 'animate-pulse' : ''}`} />
+                  <span className="relative z-10">Songs</span>
+                </button>
+                <button
+                  onClick={() => setActiveTab('bible')}
+                  className={`relative flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 ${
+                    activeTab === 'bible' ? 'text-white' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300'
+                  }`}
+                >
+                  {activeTab === 'bible' && (
+                    <motion.div
+                      layoutId="active-tab"
+                      className="absolute inset-0 bg-brand-600 rounded-xl shadow-lg shadow-brand-500/20"
+                      transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                    />
+                  )}
+                  <BookOpen className={`relative z-10 h-4 w-4 ${activeTab === 'bible' ? 'animate-pulse' : ''}`} />
+                  <span className="relative z-10">Bible</span>
+                </button>
+              </div>
+
               <SongSearch 
                 value={searchQuery} 
                 onChange={setSearchQuery} 
-                placeholder="Search for songs, numbers or genre..."
+                placeholder={activeTab === 'songs' ? "Search for songs, numbers or genre..." : "Browse Bible Chapters..."}
               />
             </motion.div>
           </section>
@@ -198,50 +265,54 @@ export default function App() {
           <section>
             <div className="mb-8 flex items-center justify-between">
               <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
-                {searchQuery ? 'Search Results' : 'Recent Songs'}
+                {searchQuery ? 'Search Results' : (activeTab === 'songs' ? 'Recent Songs' : 'Bible Database')}
               </h2>
               <span className="text-sm text-slate-500">
-                {filteredSongs.length} songs found
+                {activeTab === 'songs' ? `${filteredSongs.length} songs` : 'Supabase Live Integration'} found
               </span>
             </div>
 
             <AnimatePresence mode="wait">
               <motion.div
-                key="songs"
+                key={activeTab}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.3 }}
               >
-                {filteredSongs.length > 0 ? (
-                  <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                    {filteredSongs.map((song) => (
-                      <motion.div
-                        key={song.id}
-                        layout
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.9 }}
-                        transition={{ duration: 0.2 }}
-                      >
-                        <SongCard song={song} onView={setSelectedSong} />
-                      </motion.div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center py-20 text-center">
-                    <div className="mb-4 rounded-full bg-slate-100 dark:bg-slate-900 p-6">
-                      <Music2 className="h-10 w-10 text-slate-300 dark:text-slate-700" />
+                {activeTab === 'songs' ? (
+                  filteredSongs.length > 0 ? (
+                    <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                      {filteredSongs.map((song) => (
+                        <motion.div
+                          key={song.id}
+                          layout
+                          initial={{ opacity: 0, scale: 0.9 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.9 }}
+                          transition={{ duration: 0.2 }}
+                        >
+                          <SongCard song={song} onView={setSelectedSong} onPresent={setPresenterActiveSong} />
+                        </motion.div>
+                      ))}
                     </div>
-                    <h3 className="text-xl font-semibold text-slate-900 dark:text-white">No songs found</h3>
-                    <p className="text-slate-500">Try adjusting your search or be the first to submit this song!</p>
-                    <Button 
-                      onClick={handleAddClick} 
-                      className="mt-6 gap-2 bg-brand-600"
-                    >
-                      <Plus className="h-4 w-4" /> Submit Lyrics
-                    </Button>
-                  </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-20 text-center">
+                      <div className="mb-4 rounded-full bg-slate-100 dark:bg-slate-900 p-6">
+                        <Music2 className="h-10 w-10 text-slate-300 dark:text-slate-700" />
+                      </div>
+                      <h3 className="text-xl font-semibold text-slate-900 dark:text-white">No songs found</h3>
+                      <p className="text-slate-500">Try adjusting your search or be the first to submit this song!</p>
+                      <Button 
+                        onClick={handleAddClick} 
+                        className="mt-6 gap-2 bg-brand-600"
+                      >
+                        <Plus className="h-4 w-4" /> Submit Lyrics
+                      </Button>
+                    </div>
+                  )
+                ) : (
+                  <BibleReader />
                 )}
               </motion.div>
             </AnimatePresence>
@@ -253,6 +324,7 @@ export default function App() {
           song={selectedSong} 
           isOpen={!!selectedSong} 
           onClose={() => setSelectedSong(null)} 
+          onPresent={setPresenterActiveSong}
         />
         
         <SubmitSongDialog 

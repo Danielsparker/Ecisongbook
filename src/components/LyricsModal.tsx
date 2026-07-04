@@ -9,9 +9,10 @@ interface LyricsModalProps {
   song: Song | null;
   isOpen: boolean;
   onClose: () => void;
+  onPresent: (song: Song) => void;
 }
 
-export function LyricsModal({ song, isOpen, onClose }: LyricsModalProps) {
+export function LyricsModal({ song, isOpen, onClose, onPresent }: LyricsModalProps) {
   if (!song) return null;
 
   return (
@@ -60,6 +61,18 @@ export function LyricsModal({ song, isOpen, onClose }: LyricsModalProps) {
             >
               <Presentation className="h-4 w-4 text-orange-500" />
               PPT
+            </Button>
+            <Button 
+              variant="default" 
+              size="sm" 
+              className="gap-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white shadow-md shadow-brand-500/10"
+              onClick={() => {
+                onPresent(song);
+                onClose();
+              }}
+            >
+              <Presentation className="h-4 w-4 text-white" />
+              Present Live
             </Button>
           </div>
         </div>
