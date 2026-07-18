@@ -12,7 +12,8 @@ export const downloadAsPDF = (song: Song) => {
   // Metadata
   doc.setFontSize(12);
   doc.setTextColor(100);
-  doc.text(`Song No: ${song.songNo} | Genre: ${song.genre}`, 20, 30);
+  const metadataText = song.genre ? `Song No: ${song.songNo} | Genre: ${song.genre}` : `Song No: ${song.songNo}`;
+  doc.text(metadataText, 20, 30);
   
   // Lyrics
   doc.setFontSize(14);
@@ -41,7 +42,8 @@ export const downloadAsPPT = (song: Song) => {
     color: '363636',
     fontFace: TAMIL_FONT
   });
-  titleSlide.addText(`Song No: ${song.songNo} | Genre: ${song.genre}`, {
+  const metadataText = song.genre ? `Song No: ${song.songNo} | Genre: ${song.genre}` : `Song No: ${song.songNo}`;
+  titleSlide.addText(metadataText, {
     x: 1,
     y: 3.5,
     w: '80%',

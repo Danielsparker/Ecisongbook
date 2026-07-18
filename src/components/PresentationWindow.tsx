@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { getPresentationState, PresentationState, DEFAULT_STATE, publishPresentationState } from '../services/presentationService';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 
 export function PresentationWindow() {
   const [state, setState] = useState<PresentationState>(DEFAULT_STATE);
@@ -24,6 +26,48 @@ export function PresentationWindow() {
       console.warn('BroadcastChannel error', e);
     }
 
+    // Listen to updates via Firestore for HDMI/TV/Multi-device synchronization
+    let unsubscribeFirestore: (() => void) | null = null;
+    try {
+      const docRef = doc(db, 'presentation', 'active');
+      unsubscribeFirestore = onSnapshot(docRef, (snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.data();
+          setState((prev) => {
+            // Avoid triggering state updates if nothing changed
+            if (
+              prev.title === data.title &&
+              prev.currentSlideIndex === data.currentSlideIndex &&
+              prev.blackScreen === data.blackScreen &&
+              prev.theme === data.theme &&
+              prev.fontSize === data.fontSize &&
+              prev.fontFamily === data.fontFamily &&
+              prev.alignment === data.alignment &&
+              JSON.stringify(prev.slides) === JSON.stringify(data.slides)
+            ) {
+              return prev;
+            }
+            return {
+              title: data.title || '',
+              subtitle: data.subtitle || '',
+              slides: data.slides || [],
+              currentSlideIndex: data.currentSlideIndex ?? 0,
+              theme: data.theme || 'dark',
+              blackScreen: !!data.blackScreen,
+              fontSize: data.fontSize || 48,
+              fontFamily: data.fontFamily || 'font-sans',
+              alignment: data.alignment || 'center',
+              activeType: data.activeType || 'song'
+            };
+          });
+        }
+      }, (error) => {
+        console.warn('Firestore presentation state subscription error:', error);
+      });
+    } catch (e) {
+      console.warn('Error setting up Firestore presentation listener:', e);
+    }
+
     // Listen to updates via LocalStorage as robust cross-origin fallback
     const handleStorageChange = () => {
       setState(getPresentationState());
@@ -36,6 +80,9 @@ export function PresentationWindow() {
     return () => {
       if (broadcastChannel) {
         broadcastChannel.close();
+      }
+      if (unsubscribeFirestore) {
+        unsubscribeFirestore();
       }
       window.removeEventListener('storage', handleStorageChange);
       clearInterval(interval);

@@ -348,7 +348,7 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
                         <span className={`text-xs font-mono font-bold ${activeSong?.songNo === song.songNo ? 'text-brand-400' : 'text-slate-500'}`}>
                           #{song.songNo}
                         </span>
-                        <span className="text-[10px] uppercase tracking-wider text-slate-500">{song.genre}</span>
+                        {song.genre && <span className="text-[10px] uppercase tracking-wider text-slate-500">{song.genre}</span>}
                       </div>
                       <div className="font-semibold text-sm truncate">{song.title}</div>
                     </button>

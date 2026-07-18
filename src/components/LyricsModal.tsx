@@ -23,8 +23,12 @@ export function LyricsModal({ song, isOpen, onClose, onPresent }: LyricsModalPro
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-xs font-mono font-bold text-brand-600 uppercase tracking-widest">#{song.songNo}</span>
-                <span className="text-xs text-slate-400">•</span>
-                <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">{song.genre}</span>
+                {song.genre && (
+                  <>
+                    <span className="text-xs text-slate-400">•</span>
+                    <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">{song.genre}</span>
+                  </>
+                )}
               </div>
               <DialogTitle className="text-2xl sm:text-3xl font-bold tracking-tight dark:text-white">{song.title}</DialogTitle>
             </div>

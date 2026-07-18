@@ -31,7 +31,29 @@
           "description": "When the song was added."
         }
       },
-      "required": ["title", "songNo", "genre", "lyrics", "submittedBy", "createdAt"]
+      "required": ["title", "songNo", "lyrics", "submittedBy", "createdAt"]
+    },
+    "Presentation": {
+      "title": "Presentation",
+      "description": "Active presentation state for real-time remote synchronization.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "subtitle": { "type": "string" },
+        "slides": { 
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "currentSlideIndex": { "type": "number" },
+        "theme": { "type": "string", "enum": ["dark", "light"] },
+        "blackScreen": { "type": "boolean" },
+        "fontSize": { "type": "number" },
+        "fontFamily": { "type": "string" },
+        "alignment": { "type": "string", "enum": ["left", "center", "right"] },
+        "activeType": { "type": "string", "enum": ["song", "bible", "custom"] },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "slides", "currentSlideIndex", "theme", "blackScreen", "fontSize", "fontFamily", "alignment", "activeType", "updatedAt"]
     },
     "User": {
       "title": "User",
@@ -54,6 +76,10 @@
     "/users/{userId}": {
       "schema": "User",
       "description": "User profile documents."
+    },
+    "/presentation/{docId}": {
+      "schema": "Presentation",
+      "description": "Real-time active state for external displays and projector screens."
     }
   }
 }

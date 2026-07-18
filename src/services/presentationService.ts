@@ -1,3 +1,6 @@
+import { doc, setDoc } from 'firebase/firestore';
+import { db } from '../lib/firebase';
+
 export interface PresentationState {
   title: string;
   subtitle?: string; // e.g. "Song #12" or "John 3:16"
@@ -67,6 +70,30 @@ export function splitLyricsToSlides(lyrics: string): string[] {
 }
 
 /**
+ * Publishes presentation state to Firestore for cross-device/HDMI synchronization.
+ */
+export async function publishPresentationStateToFirestore(state: PresentationState) {
+  try {
+    const docRef = doc(db, 'presentation', 'active');
+    await setDoc(docRef, {
+      title: state.title || '',
+      subtitle: state.subtitle || '',
+      slides: state.slides || [],
+      currentSlideIndex: state.currentSlideIndex ?? 0,
+      theme: state.theme || 'dark',
+      blackScreen: !!state.blackScreen,
+      fontSize: state.fontSize || 48,
+      fontFamily: state.fontFamily || 'font-sans',
+      alignment: state.alignment || 'center',
+      activeType: state.activeType || 'song',
+      updatedAt: new Date().toISOString()
+    });
+  } catch (error) {
+    console.warn('Failed to publish presentation state to Firestore:', error);
+  }
+}
+
+/**
  * Publishes the presentation state to both BroadcastChannel and localStorage
  */
 export function publishPresentationState(state: PresentationState) {
@@ -89,6 +116,9 @@ export function publishPresentationState(state: PresentationState) {
     const event = new Event('storage');
     window.dispatchEvent(event);
   } catch (e) {}
+
+  // Publish to Firestore in the background for remote/external TV presentation sync
+  publishPresentationStateToFirestore(state);
 }
 
 /**

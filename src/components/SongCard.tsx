@@ -18,9 +18,11 @@ export function SongCard({ song, onView, onPresent }: SongCardProps) {
           <Badge variant="secondary" className="bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-400 border-brand-100 dark:border-brand-800 font-mono">
             #{song.songNo}
           </Badge>
-          <Badge variant="outline" className="text-slate-500 dark:text-slate-400 font-normal dark:border-slate-800">
-            {song.genre}
-          </Badge>
+          {song.genre && (
+            <Badge variant="outline" className="text-slate-500 dark:text-slate-400 font-normal dark:border-slate-800">
+              {song.genre}
+            </Badge>
+          )}
         </div>
         <CardTitle className="text-lg font-bold group-hover:text-brand-600 transition-colors line-clamp-1 dark:text-white">
           {song.title}

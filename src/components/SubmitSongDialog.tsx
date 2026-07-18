@@ -73,13 +73,12 @@ export function SubmitSongDialog({ isOpen, onClose, onSubmit }: SubmitSongDialog
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="genre" className="dark:text-slate-300">Genre</Label>
+                <Label htmlFor="genre" className="dark:text-slate-300">Genre <span className="text-xs text-slate-400 font-normal">(Optional)</span></Label>
                 <Input 
                   id="genre" 
                   placeholder="e.g. Rock, Pop, Jazz" 
                   value={genre}
                   onChange={(e) => setGenre(e.target.value)}
-                  required
                   className="dark:bg-slate-900 dark:border-slate-800 dark:text-white"
                 />
               </div>
