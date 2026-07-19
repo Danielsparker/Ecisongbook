@@ -19,7 +19,12 @@ import {
   Music,
   Settings,
   HelpCircle,
-  BookOpen
+  BookOpen,
+  Copy,
+  Check,
+  Wifi,
+  QrCode,
+  Layers
 } from 'lucide-react';
 import { Song, BibleVerse } from '../types';
 import { 
@@ -68,6 +73,13 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
 
   const [projectorWindow, setProjectorWindow] = useState<Window | null>(null);
   const [showInstructions, setShowInstructions] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [instructionsTab, setInstructionsTab] = useState<'cloud' | 'hdmi' | 'multi'>('cloud');
+
+  const projectorUrl = useMemo(() => {
+    if (typeof window === 'undefined') return '';
+    return `${window.location.origin}${window.location.pathname}?mode=presentation`;
+  }, []);
 
   // Sync state initially and whenever changes are made
   useEffect(() => {
@@ -243,9 +255,13 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
         <div className="flex items-center gap-2.5">
           <Button 
             onClick={toggleBlackout} 
-            variant={presState.blackScreen ? "destructive" : "outline"}
+            variant="outline"
             size="sm"
-            className={`gap-2 h-9 rounded-xl font-semibold border-slate-700 hover:bg-slate-800 transition-all ${presState.blackScreen ? 'animate-pulse' : ''}`}
+            className={`gap-2 h-9 rounded-xl font-semibold transition-all border ${
+              presState.blackScreen 
+                ? 'bg-rose-600 hover:bg-rose-700 text-white border-rose-500 animate-pulse shadow-lg shadow-rose-900/30' 
+                : 'bg-slate-800/80 hover:bg-slate-700 text-slate-100 border-slate-700 hover:border-slate-600'
+            }`}
           >
             {presState.blackScreen ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             {presState.blackScreen ? "Blackout Active" : "Blackout Screen"}
@@ -281,23 +297,194 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
         </div>
       </header>
 
-      {/* Dynamic instructions overlay */}
+      {/* Dynamic multi-screen and instructions overlay */}
       {showInstructions && (
-        <Card className="mb-4 border-brand-500/20 bg-brand-950/20 text-slate-300 rounded-2xl">
-          <CardHeader className="py-3">
-            <CardTitle className="text-sm font-bold text-white">How to Setup Dual Displays:</CardTitle>
-          </CardHeader>
-          <CardContent className="text-xs space-y-2">
-            <p>1. Connect your laptop to your Projector, TV, or HDMI-equipped church display screen.</p>
-            <p>2. Set your computer's display settings to <strong>Extend display</strong> (not Mirror/Duplicate).</p>
-            <p>3. Click <strong>Launch Projector Screen</strong> above. A separate browser popup/window will open.</p>
-            <p>4. Drag that new window to your extended screen/projector and click inside it, then press <strong>F</strong> on your keyboard to make it fullscreen.</p>
-            <p>5. Control everything from this primary screen! You can use the keyboard shortcuts below:</p>
-            <div className="grid grid-cols-2 gap-2 max-w-lg mt-2 pt-2 border-t border-slate-800 font-mono text-[10px] text-brand-400">
-              <div>→ / Space: Next Slide</div>
-              <div>←: Previous Slide</div>
-              <div>B: Toggle Black Screen</div>
-              <div>F: Toggle Fullscreen</div>
+        <Card className="mb-6 border-brand-500/30 bg-slate-900/95 text-slate-300 rounded-2xl shadow-2xl overflow-hidden backdrop-blur-sm">
+          <div className="bg-gradient-to-r from-brand-950/40 via-slate-900 to-slate-900 p-4 border-b border-slate-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+              <CardTitle className="text-base font-bold text-white flex items-center gap-2">
+                <Tv className="h-5 w-5 text-brand-400 animate-pulse" />
+                Church Screen Projection & Multi-TV Setup Hub
+              </CardTitle>
+              <CardDescription className="text-xs text-slate-400">
+                Configure ECI Song Book to display lyrics slides on 1, 2, 3 or more TVs/Projectors simultaneously.
+              </CardDescription>
+            </div>
+            
+            <div className="flex gap-2 shrink-0">
+              <Button
+                onClick={() => {
+                  publishPresentationState(presState);
+                  openPresentationWindow(true); // Open brand-new independent window!
+                }}
+                variant="outline"
+                size="sm"
+                className="text-xs h-8 rounded-lg bg-brand-950/30 border-brand-500/30 text-brand-400 hover:text-white hover:bg-brand-900/30 transition-all"
+              >
+                <Layers className="h-3.5 w-3.5 mr-1" />
+                Launch Extra Projector Window
+              </Button>
+            </div>
+          </div>
+          
+          <CardContent className="p-5">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              
+              {/* Left column: Synced Link & QR Code */}
+              <div className="lg:col-span-5 flex flex-col justify-between gap-4 bg-slate-950/60 p-4 rounded-xl border border-slate-800">
+                <div>
+                  <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider mb-2">Live Synced Projector Link</h4>
+                  <p className="text-[11px] text-slate-400 mb-3 leading-relaxed">
+                    Open this URL on any device connected to your church TVs (e.g. Smart TVs, phones, laptops) to mirror the lyrics in real time over the cloud!
+                  </p>
+                  
+                  <div className="flex gap-2 mb-2">
+                    <input 
+                      type="text" 
+                      readOnly 
+                      value={projectorUrl}
+                      className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[11px] text-brand-400 font-mono select-all focus:outline-none"
+                    />
+                    <Button
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(projectorUrl);
+                          setCopied(true);
+                          setTimeout(() => setCopied(false), 2000);
+                        } catch (e) {}
+                      }}
+                      variant="secondary"
+                      size="sm"
+                      className="h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs gap-1 text-slate-200 shrink-0"
+                    >
+                      {copied ? <Check className="h-3 w-3 text-green-400" /> : <Copy className="h-3 w-3" />}
+                      {copied ? "Copied" : "Copy"}
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4 bg-slate-900/40 p-3 rounded-lg border border-slate-800/60">
+                  <div className="bg-white p-1 rounded-lg shrink-0">
+                    <img 
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(projectorUrl)}`} 
+                      alt="Projector QR Code" 
+                      className="w-20 h-20"
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <h5 className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+                      <QrCode className="h-3.5 w-3.5 text-brand-400" />
+                      Scan QR Code on Smart TV
+                    </h5>
+                    <p className="text-[10px] text-slate-400 leading-relaxed">
+                      Scan with any smartphone, tablet, or Smart TV camera to instantly load the live lyrics slide view.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Right column: Tabs explaining methods */}
+              <div className="lg:col-span-7 flex flex-col space-y-3">
+                <div className="flex border-b border-slate-800 pb-1 gap-1">
+                  <button
+                    onClick={() => setInstructionsTab('cloud')}
+                    className={`px-3 py-1.5 text-xs font-semibold rounded-t-lg transition-colors border-b-2 -mb-1.5 ${
+                      instructionsTab === 'cloud' 
+                        ? 'border-brand-500 text-brand-400 bg-brand-950/10 font-bold' 
+                        : 'border-transparent text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    ☁️ Cloud Sync (Wireless)
+                  </button>
+                  <button
+                    onClick={() => setInstructionsTab('hdmi')}
+                    className={`px-3 py-1.5 text-xs font-semibold rounded-t-lg transition-colors border-b-2 -mb-1.5 ${
+                      instructionsTab === 'hdmi' 
+                        ? 'border-brand-500 text-brand-400 bg-brand-950/10 font-bold' 
+                        : 'border-transparent text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    🔌 HDMI Splitter Setup
+                  </button>
+                  <button
+                    onClick={() => setInstructionsTab('multi')}
+                    className={`px-3 py-1.5 text-xs font-semibold rounded-t-lg transition-colors border-b-2 -mb-1.5 ${
+                      instructionsTab === 'multi' 
+                        ? 'border-brand-500 text-brand-400 bg-brand-950/10 font-bold' 
+                        : 'border-transparent text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    🖥️ Multi-Display Extended
+                  </button>
+                </div>
+                
+                <div className="flex-1 bg-slate-950/30 p-4 rounded-xl border border-slate-800 text-xs min-h-[140px] flex flex-col justify-center">
+                  {instructionsTab === 'cloud' && (
+                    <div className="space-y-2">
+                      <p className="font-semibold text-white flex items-center gap-1.5">
+                        <Wifi className="h-4 w-4 text-brand-400" />
+                        Wireless Cloud Synchronization (Best for 3+ TVs)
+                      </p>
+                      <ul className="list-disc pl-4 space-y-1.5 text-slate-400">
+                        <li><strong>No physical cables or HDMI splitters needed!</strong></li>
+                        <li>Simply copy the Projector Link above and open it in the built-in web browser of your Smart TVs, Firesticks, Apple TVs, or secondary laptops connected to each TV.</li>
+                        <li>Because this app is backed by a <strong>real-time Firestore database</strong>, all TVs will stay in perfect millisecond synchronization as you change slides on this controller screen!</li>
+                      </ul>
+                    </div>
+                  )}
+                  
+                  {instructionsTab === 'hdmi' && (
+                    <div className="space-y-2">
+                      <p className="font-semibold text-white flex items-center gap-1.5">
+                        <span>🔌</span> HDMI Distribution Splitter (Traditional Setup)
+                      </p>
+                      <ul className="list-disc pl-4 space-y-1.5 text-slate-400">
+                        <li>Connect your main operator computer to an <strong>HDMI Splitter box (1 input to 3 outputs)</strong> using an HDMI cable.</li>
+                        <li>Connect the 3 TVs to the 3 output ports of the HDMI splitter.</li>
+                        <li>In your computer's Display settings, choose <strong>"Extend Desktop"</strong>.</li>
+                        <li>Click <strong>Launch Projector Screen</strong>, drag that window onto the extended screen, click inside it, and press <strong>F</strong> (or click F11) for full screen. The splitter will automatically mirror it to all 3 TVs!</li>
+                      </ul>
+                    </div>
+                  )}
+                  
+                  {instructionsTab === 'multi' && (
+                    <div className="space-y-2">
+                      <p className="font-semibold text-white flex items-center gap-1.5">
+                        <Layers className="h-4 w-4 text-brand-400" />
+                        Independent Extended screens (PowerPoint / Verse View style)
+                      </p>
+                      <ul className="list-disc pl-4 space-y-1.5 text-slate-400">
+                        <li>If your computer detects each TV as a separate extended display (e.g., Extended Screen 1, Screen 2, Screen 3):</li>
+                        <li>Click the <strong>"Launch Extra Projector Window"</strong> button at the top right of this guide 3 times.</li>
+                        <li>You will get 3 separate projector windows. Drag one window onto each of the 3 extended TVs.</li>
+                        <li>Click inside each window and press <strong>F</strong> to make them full screen. All of them will instantly sync with your controls!</li>
+                      </ul>
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-4 gap-2 pt-2 border-t border-slate-800 font-mono text-[10px] text-brand-400">
+                  <div className="flex items-center gap-1">
+                    <span className="bg-slate-800 px-1 py-0.5 rounded text-slate-300">Space / →</span>
+                    <span>Next Slide</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="bg-slate-800 px-1 py-0.5 rounded text-slate-300">←</span>
+                    <span>Prev Slide</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="bg-slate-800 px-1 py-0.5 rounded text-slate-300">B</span>
+                    <span>Blackout</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="bg-slate-800 px-1 py-0.5 rounded text-slate-300">F</span>
+                    <span>Fullscreen</span>
+                  </div>
+                </div>
+
+              </div>
+
             </div>
           </CardContent>
         </Card>
@@ -504,7 +691,7 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
               disabled={presState.currentSlideIndex === 0}
               variant="outline"
               size="sm"
-              className="gap-1.5 rounded-xl border-slate-800 text-slate-300 hover:text-white"
+              className="gap-1.5 rounded-xl border-slate-700 bg-slate-900/80 text-slate-200 hover:text-white hover:bg-slate-800 disabled:opacity-30"
             >
               <ChevronLeft className="h-4 w-4" /> Prev Slide
             </Button>
@@ -518,7 +705,7 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
               disabled={presState.currentSlideIndex >= presState.slides.length - 1}
               variant="outline"
               size="sm"
-              className="gap-1.5 rounded-xl border-slate-800 text-slate-300 hover:text-white"
+              className="gap-1.5 rounded-xl border-slate-700 bg-slate-900/80 text-slate-200 hover:text-white hover:bg-slate-800 disabled:opacity-30"
             >
               Next Slide <ChevronRight className="h-4 w-4" />
             </Button>
@@ -538,14 +725,22 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
                 <Button
                   onClick={() => setPresState(p => ({ ...p, theme: 'dark' }))}
                   variant="outline"
-                  className={`rounded-xl text-xs gap-2 ${presState.theme === 'dark' ? 'bg-brand-950/20 border-brand-500 text-white' : 'border-slate-800 text-slate-400'}`}
+                  className={`rounded-xl text-xs gap-2 transition-all border ${
+                    presState.theme === 'dark' 
+                      ? 'bg-brand-950/30 border-brand-500 text-brand-400 shadow-inner' 
+                      : 'bg-slate-900/50 border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-800/80'
+                  }`}
                 >
                   <Moon className="h-4 w-4" /> Dark Canvas
                 </Button>
                 <Button
                   onClick={() => setPresState(p => ({ ...p, theme: 'light' }))}
                   variant="outline"
-                  className={`rounded-xl text-xs gap-2 ${presState.theme === 'light' ? 'bg-brand-950/20 border-brand-500 text-white' : 'border-slate-800 text-slate-400'}`}
+                  className={`rounded-xl text-xs gap-2 transition-all border ${
+                    presState.theme === 'light' 
+                      ? 'bg-white border-brand-500 text-slate-900 font-semibold shadow-md' 
+                      : 'bg-slate-900/50 border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-800/80'
+                  }`}
                 >
                   <Sun className="h-4 w-4" /> Light Canvas
                 </Button>

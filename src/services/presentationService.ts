@@ -139,11 +139,11 @@ export function getPresentationState(): PresentationState {
 /**
  * Open the presentation window in fullscreen/popup configuration
  */
-export function openPresentationWindow(): Window | null {
+export function openPresentationWindow(isNewWindow: boolean = false): Window | null {
   if (typeof window === 'undefined') return null;
   
   const url = `${window.location.origin}${window.location.pathname}?mode=presentation`;
-  const name = 'eci-presentation-window';
+  const name = isNewWindow ? `eci-presentation-window-${Date.now()}` : 'eci-presentation-window';
   const features = 'width=1024,height=768,menubar=no,toolbar=no,location=no,status=no,personalbar=no';
   
   const win = window.open(url, name, features);
