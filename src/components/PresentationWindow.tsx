@@ -19,6 +19,9 @@ export function PresentationWindow() {
         broadcastChannel.onmessage = (event) => {
           if (event.data) {
             setState(event.data);
+            try {
+              localStorage.setItem('eci_presentation_state', JSON.stringify(event.data));
+            } catch (e) {}
           }
         };
       }
@@ -33,21 +36,9 @@ export function PresentationWindow() {
       unsubscribeFirestore = onSnapshot(docRef, (snapshot) => {
         if (snapshot.exists()) {
           const data = snapshot.data();
-          setState((prev) => {
-            // Avoid triggering state updates if nothing changed
-            if (
-              prev.title === data.title &&
-              prev.currentSlideIndex === data.currentSlideIndex &&
-              prev.blackScreen === data.blackScreen &&
-              prev.theme === data.theme &&
-              prev.fontSize === data.fontSize &&
-              prev.fontFamily === data.fontFamily &&
-              prev.alignment === data.alignment &&
-              JSON.stringify(prev.slides) === JSON.stringify(data.slides)
-            ) {
-              return prev;
-            }
-            return {
+          // Only sync if Firestore has valid slide data or intentional blackout
+          if (data && (Array.isArray(data.slides) && data.slides.length > 0)) {
+            const nextState: PresentationState = {
               title: data.title || '',
               subtitle: data.subtitle || '',
               slides: data.slides || [],
@@ -59,7 +50,11 @@ export function PresentationWindow() {
               alignment: data.alignment || 'center',
               activeType: data.activeType || 'song'
             };
-          });
+            setState(nextState);
+            try {
+              localStorage.setItem('eci_presentation_state', JSON.stringify(nextState));
+            } catch (e) {}
+          }
         }
       }, (error) => {
         console.warn('Firestore presentation state subscription error:', error);
@@ -70,7 +65,15 @@ export function PresentationWindow() {
 
     // Listen to updates via LocalStorage as robust cross-origin fallback
     const handleStorageChange = () => {
-      setState(getPresentationState());
+      const saved = localStorage.getItem('eci_presentation_state');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed && Array.isArray(parsed.slides) && parsed.slides.length > 0) {
+            setState(parsed);
+          }
+        } catch (e) {}
+      }
     };
 
     window.addEventListener('storage', handleStorageChange);

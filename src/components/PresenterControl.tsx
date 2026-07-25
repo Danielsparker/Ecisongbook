@@ -70,6 +70,19 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
         activeType: 'song'
       };
     }
+    // If saved state has no slides and songs are available, auto-load the first song
+    if ((!saved.slides || saved.slides.length === 0) && songs && songs.length > 0) {
+      const firstSong = songs[0];
+      const slides = splitLyricsToSlides(firstSong.lyrics);
+      return {
+        ...saved,
+        title: firstSong.title,
+        subtitle: `Song #${firstSong.songNo}`,
+        slides: slides,
+        currentSlideIndex: 0,
+        activeType: 'song'
+      };
+    }
     return saved;
   });
 
