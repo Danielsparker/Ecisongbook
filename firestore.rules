@@ -122,7 +122,7 @@ service cloud.firestore {
 
     match /presentation/{docId} {
       allow read: if true;
-      allow write: if (isAuthenticated() || get(/databases/$(database)/documents/config/global).data.publicSubmissions == true) && isValidPresentation(request.resource.data);
+      allow write: if true;
     }
   }
 }
