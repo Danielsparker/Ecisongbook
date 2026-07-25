@@ -76,6 +76,20 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
   const [copied, setCopied] = useState(false);
   const [instructionsTab, setInstructionsTab] = useState<'cloud' | 'hdmi' | 'multi'>('cloud');
 
+  const isLightCanvas = presState.theme === 'light';
+
+  const alignmentClass = {
+    left: 'text-left justify-start items-start',
+    center: 'text-center justify-center items-center',
+    right: 'text-right justify-end items-end',
+  }[presState.alignment || 'center'] || 'text-center justify-center items-center';
+
+  const fontClass = {
+    'font-sans': 'font-sans',
+    'font-serif': 'font-serif font-medium',
+    'font-mono': 'font-mono',
+  }[presState.fontFamily || 'font-sans'] || 'font-sans';
+
   const projectorUrl = useMemo(() => {
     if (typeof window === 'undefined') return '';
     return `${window.location.origin}${window.location.pathname}?mode=presentation`;
@@ -622,27 +636,43 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
           </div>
 
           {/* Current Slide Big Visual Preview Card */}
-          <div className="mb-4 shrink-0 relative aspect-[16/9] bg-slate-900 border border-slate-800 rounded-xl overflow-hidden flex flex-col justify-between p-4 shadow-inner">
-            <div className="flex justify-between items-center text-[10px] uppercase font-mono tracking-wider opacity-40">
+          <div className={`mb-4 shrink-0 relative aspect-[16/9] border rounded-xl overflow-hidden flex flex-col justify-between p-4 shadow-inner transition-colors duration-300 ${
+            isLightCanvas 
+              ? 'bg-white border-slate-300 text-slate-900' 
+              : 'bg-slate-900 border-slate-800 text-white'
+          }`}>
+            <div className={`flex justify-between items-center text-[10px] uppercase font-mono tracking-wider ${
+              isLightCanvas ? 'text-slate-600 font-medium' : 'opacity-40 text-slate-300'
+            }`}>
               <span>{presState.subtitle || 'Projection Preview'}</span>
-              <span>LIVE OUTPUT PREVIEW</span>
+              <span className="font-bold flex items-center gap-1.5">
+                <span className={`h-2 w-2 rounded-full ${isLightCanvas ? 'bg-amber-500' : 'bg-brand-500'} animate-pulse`} />
+                LIVE OUTPUT PREVIEW ({isLightCanvas ? 'LIGHT CANVAS' : 'DARK CANVAS'})
+              </span>
             </div>
             
-            <div className={`flex-1 flex justify-center items-center py-4 px-8 text-center text-white ${presState.blackScreen ? 'opacity-0' : 'opacity-100'}`} style={{ transition: 'opacity 0.2s' }}>
-              <p className="text-base sm:text-lg md:text-xl font-serif italic max-w-md break-words whitespace-pre-wrap leading-relaxed">
+            <div 
+              className={`flex-1 flex ${alignmentClass} py-4 px-8 ${presState.blackScreen ? 'opacity-0' : 'opacity-100'}`} 
+              style={{ transition: 'opacity 0.2s' }}
+            >
+              <p className={`text-base sm:text-lg md:text-xl ${fontClass} italic max-w-md break-words whitespace-pre-wrap leading-relaxed ${
+                isLightCanvas ? 'text-slate-900 font-semibold' : 'text-white'
+              }`}>
                 {presState.slides[presState.currentSlideIndex] || '--- Screen Blank ---'}
               </p>
             </div>
 
             {presState.blackScreen && (
-              <div className="absolute inset-0 bg-black flex items-center justify-center">
+              <div className="absolute inset-0 bg-black flex items-center justify-center z-10">
                 <Badge variant="destructive" className="animate-pulse tracking-widest text-xs uppercase rounded-full px-3 py-1 font-mono font-bold">
                   BLACKOUT SCREEN ACTIVE
                 </Badge>
               </div>
             )}
 
-            <div className="flex justify-between items-center text-[10px] font-mono opacity-40">
+            <div className={`flex justify-between items-center text-[10px] font-mono ${
+              isLightCanvas ? 'text-slate-600 font-medium' : 'opacity-40 text-slate-300'
+            }`}>
               <span className="truncate max-w-xs">{presState.title || 'Ready'}</span>
               <span>{presState.slides.length > 0 ? `${presState.currentSlideIndex + 1} / ${presState.slides.length}` : '0 / 0'}</span>
             </div>
@@ -658,20 +688,30 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
                   onClick={() => handleSelectSlide(idx)}
                   className={`relative p-4 rounded-xl text-left border transition-all h-28 flex flex-col justify-between overflow-hidden group ${
                     presState.currentSlideIndex === idx && !presState.blackScreen
-                      ? 'bg-brand-950/20 border-brand-500 text-white ring-2 ring-brand-500/30 shadow-md shadow-brand-950/35'
-                      : 'bg-slate-900/60 border-slate-800 hover:border-slate-700 text-slate-300'
+                      ? isLightCanvas
+                        ? 'bg-amber-100/90 border-amber-500 text-slate-950 ring-2 ring-amber-400/50 shadow-md font-semibold'
+                        : 'bg-brand-950/20 border-brand-500 text-white ring-2 ring-brand-500/30 shadow-md shadow-brand-950/35'
+                      : isLightCanvas
+                        ? 'bg-slate-100 border-slate-300 hover:border-slate-400 text-slate-900'
+                        : 'bg-slate-900/60 border-slate-800 hover:border-slate-700 text-slate-300'
                   }`}
                 >
-                  <span className="absolute top-2 right-3 text-[10px] font-bold font-mono text-slate-500 group-hover:text-slate-400">
+                  <span className={`absolute top-2 right-3 text-[10px] font-bold font-mono ${
+                    isLightCanvas ? 'text-slate-500' : 'text-slate-500 group-hover:text-slate-400'
+                  }`}>
                     Slide {idx + 1}
                   </span>
                   
-                  <div className="text-xs leading-relaxed line-clamp-3 font-serif font-medium mt-3 whitespace-pre-wrap">
+                  <div className={`text-xs leading-relaxed line-clamp-3 ${fontClass} font-medium mt-3 whitespace-pre-wrap ${
+                    isLightCanvas ? 'text-slate-900 font-semibold' : ''
+                  }`}>
                     {slide}
                   </div>
                   
-                  <div className="mt-1 flex items-center gap-1.5 text-[9px] font-mono text-slate-500 uppercase tracking-wider">
-                    <span className="h-1.5 w-1.5 rounded-full bg-slate-500 group-hover:bg-brand-500" />
+                  <div className={`mt-1 flex items-center gap-1.5 text-[9px] font-mono uppercase tracking-wider ${
+                    isLightCanvas ? 'text-slate-600' : 'text-slate-500'
+                  }`}>
+                    <span className={`h-1.5 w-1.5 rounded-full ${isLightCanvas ? 'bg-amber-500' : 'bg-brand-500'}`} />
                     ECI LYRIC BLOCK
                   </div>
                 </button>

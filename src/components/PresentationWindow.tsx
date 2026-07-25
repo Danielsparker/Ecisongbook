@@ -183,8 +183,8 @@ export function PresentationWindow() {
     >
       {/* Header Info (Small metadata to identify active song/chapter subtly) */}
       <div 
-        className="w-full flex justify-between items-center opacity-40 text-sm tracking-wider font-mono uppercase shrink-0"
-        style={{ fontSize: '14px' }}
+        className="w-full flex justify-between items-center opacity-60 text-sm tracking-wider font-mono uppercase shrink-0"
+        style={{ fontSize: '14px', color: textColor }}
       >
         <div>{state?.subtitle || ''}</div>
         <div>ECI Presentation Mode</div>
@@ -201,7 +201,7 @@ export function PresentationWindow() {
               exit={{ opacity: 0, y: -15 }}
               transition={{ duration: 0.25, ease: 'easeInOut' }}
               className={`max-w-6xl w-full leading-snug whitespace-pre-wrap break-words ${fontClass}`}
-              style={{ fontSize: `${fontSizeVal}px` }}
+              style={{ fontSize: `${fontSizeVal}px`, color: textColor }}
             >
               {activeSlideContent}
             </motion.div>
@@ -211,8 +211,8 @@ export function PresentationWindow() {
 
       {/* Footer Info / Progress marker */}
       <div 
-        className="w-full flex justify-between items-center opacity-30 text-xs tracking-wider font-mono shrink-0"
-        style={{ fontSize: '12px' }}
+        className="w-full flex justify-between items-center opacity-60 text-xs tracking-wider font-mono shrink-0"
+        style={{ fontSize: '12px', color: textColor }}
       >
         <div className="truncate max-w-md font-sans font-semibold">{state?.title || ''}</div>
         <div>
