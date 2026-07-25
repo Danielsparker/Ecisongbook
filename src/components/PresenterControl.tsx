@@ -255,12 +255,12 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
         <div className="flex items-center gap-2.5">
           <Button 
             onClick={toggleBlackout} 
-            variant="outline"
+            variant="ghost"
             size="sm"
             className={`gap-2 h-9 rounded-xl font-semibold transition-all border ${
               presState.blackScreen 
-                ? 'bg-rose-600 hover:bg-rose-700 text-white border-rose-500 animate-pulse shadow-lg shadow-rose-900/30' 
-                : 'bg-slate-800/80 hover:bg-slate-700 text-slate-100 border-slate-700 hover:border-slate-600'
+                ? '!bg-rose-600 hover:!bg-rose-700 !text-white border-rose-500 animate-pulse shadow-lg shadow-rose-900/30' 
+                : '!bg-slate-800 hover:!bg-slate-700 !text-slate-100 border-slate-700 hover:border-slate-600'
             }`}
           >
             {presState.blackScreen ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -689,9 +689,9 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
             <Button
               onClick={handlePrev}
               disabled={presState.currentSlideIndex === 0}
-              variant="outline"
+              variant="ghost"
               size="sm"
-              className="gap-1.5 rounded-xl border-slate-700 bg-slate-900/80 text-slate-200 hover:text-white hover:bg-slate-800 disabled:opacity-30"
+              className="gap-1.5 rounded-xl border border-slate-700 !bg-slate-800 !text-slate-100 hover:!bg-slate-700 disabled:opacity-30"
             >
               <ChevronLeft className="h-4 w-4" /> Prev Slide
             </Button>
@@ -703,9 +703,9 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
             <Button
               onClick={handleNext}
               disabled={presState.currentSlideIndex >= presState.slides.length - 1}
-              variant="outline"
+              variant="ghost"
               size="sm"
-              className="gap-1.5 rounded-xl border-slate-700 bg-slate-900/80 text-slate-200 hover:text-white hover:bg-slate-800 disabled:opacity-30"
+              className="gap-1.5 rounded-xl border border-slate-700 !bg-slate-800 !text-slate-100 hover:!bg-slate-700 disabled:opacity-30"
             >
               Next Slide <ChevronRight className="h-4 w-4" />
             </Button>
@@ -724,22 +724,22 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
               <div className="grid grid-cols-2 gap-2">
                 <Button
                   onClick={() => setPresState(p => ({ ...p, theme: 'dark' }))}
-                  variant="outline"
+                  variant="ghost"
                   className={`rounded-xl text-xs gap-2 transition-all border ${
                     presState.theme === 'dark' 
-                      ? 'bg-brand-950/30 border-brand-500 text-brand-400 shadow-inner' 
-                      : 'bg-slate-900/50 border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-800/80'
+                      ? '!bg-brand-950/80 border-brand-500 !text-brand-400 shadow-inner font-bold' 
+                      : '!bg-slate-900 border-slate-800 !text-slate-300 hover:!text-slate-100 hover:!bg-slate-800'
                   }`}
                 >
                   <Moon className="h-4 w-4" /> Dark Canvas
                 </Button>
                 <Button
                   onClick={() => setPresState(p => ({ ...p, theme: 'light' }))}
-                  variant="outline"
+                  variant="ghost"
                   className={`rounded-xl text-xs gap-2 transition-all border ${
                     presState.theme === 'light' 
-                      ? 'bg-white border-brand-500 text-slate-900 font-semibold shadow-md' 
-                      : 'bg-slate-900/50 border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-800/80'
+                      ? '!bg-amber-400 border-amber-300 !text-slate-950 font-bold shadow-md' 
+                      : '!bg-slate-900 border-slate-800 !text-slate-300 hover:!text-slate-100 hover:!bg-slate-800'
                   }`}
                 >
                   <Sun className="h-4 w-4" /> Light Canvas
