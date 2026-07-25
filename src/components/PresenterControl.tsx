@@ -24,7 +24,9 @@ import {
   Check,
   Wifi,
   QrCode,
-  Layers
+  Layers,
+  Plus,
+  Minus
 } from 'lucide-react';
 import { Song, BibleVerse } from '../types';
 import { 
@@ -655,9 +657,12 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
               className={`flex-1 flex ${alignmentClass} py-4 px-8 ${presState.blackScreen ? 'opacity-0' : 'opacity-100'}`} 
               style={{ transition: 'opacity 0.2s' }}
             >
-              <p className={`text-base sm:text-lg md:text-xl ${fontClass} italic max-w-md break-words whitespace-pre-wrap leading-relaxed ${
-                isLightCanvas ? 'text-slate-900 font-semibold' : 'text-white'
-              }`}>
+              <p 
+                className={`${fontClass} italic max-w-xl break-words whitespace-pre-wrap leading-snug transition-all duration-200 ${
+                  isLightCanvas ? 'text-slate-900 font-semibold' : 'text-white'
+                }`}
+                style={{ fontSize: `${Math.max(14, Math.min(42, Math.round((presState.fontSize || 48) * 0.45)))}px` }}
+              >
                 {presState.slides[presState.currentSlideIndex] || '--- Screen Blank ---'}
               </p>
             </div>
@@ -845,24 +850,59 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
                 </div>
               </div>
 
-              {/* Font Size Slider */}
+              {/* Font Size Slider & Quick Presets */}
               <div>
                 <div className="flex justify-between items-center mb-2">
                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Font Size</label>
-                  <span className="text-xs font-bold font-mono text-brand-400">{presState.fontSize}px</span>
+                  <span className="text-xs font-bold font-mono text-brand-400">{presState.fontSize || 48}px</span>
                 </div>
-                <div className="px-1 flex items-center gap-3">
-                  <span className="text-xs text-slate-500">A</span>
+                
+                <div className="px-1 flex items-center gap-2 mb-3">
+                  <button
+                    type="button"
+                    onClick={() => handleFontSizeChange(Math.max(20, (presState.fontSize || 48) - 4))}
+                    className="h-7 w-7 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800 flex items-center justify-center font-bold text-xs"
+                    title="Decrease font size"
+                  >
+                    <Minus className="h-3.5 w-3.5" />
+                  </button>
+
                   <input
                     type="range"
-                    min="24"
-                    max="80"
+                    min="20"
+                    max="120"
                     step="2"
-                    value={presState.fontSize}
+                    value={presState.fontSize || 48}
                     onChange={(e) => handleFontSizeChange(Number(e.target.value))}
                     className="flex-1 cursor-pointer h-1.5 bg-slate-800 rounded-lg appearance-none accent-brand-500"
                   />
-                  <span className="text-lg text-slate-400 font-bold">A</span>
+
+                  <button
+                    type="button"
+                    onClick={() => handleFontSizeChange(Math.min(120, (presState.fontSize || 48) + 4))}
+                    className="h-7 w-7 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800 flex items-center justify-center font-bold text-xs"
+                    title="Increase font size"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+
+                {/* Quick Presets */}
+                <div className="grid grid-cols-5 gap-1 text-[10px] font-mono">
+                  {[32, 48, 64, 80, 96].map((size) => (
+                    <button
+                      key={size}
+                      type="button"
+                      onClick={() => handleFontSizeChange(size)}
+                      className={`py-1 rounded-lg border text-center transition-all ${
+                        presState.fontSize === size
+                          ? '!bg-brand-600 border-brand-500 !text-white font-bold'
+                          : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                      }`}
+                    >
+                      {size}px
+                    </button>
+                  ))}
                 </div>
               </div>
 

@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight, Book, Layers, ArrowLeft, RefreshCw, AlertCir
 import { supabase } from '../lib/supabase';
 import { BibleVerse } from '../types';
 import { Button } from '@/components/ui/button';
-import { publishPresentationState, openPresentationWindow } from '../services/presentationService';
+import { publishPresentationState, openPresentationWindow, getPresentationState } from '../services/presentationService';
 
 export function BibleReader() {
   const [books, setBooks] = useState<string[]>([]);
@@ -214,16 +214,15 @@ export function BibleReader() {
     const activeVerse = verses[currentVerseIndex];
     if (!activeVerse) return;
 
+    const currentPresState = getPresentationState();
+
     publishPresentationState({
+      ...currentPresState,
       title: `${selectedBook} ${selectedChapter}:${activeVerse.verse}`,
       subtitle: `${activeVerse.version || 'Holy Bible'}`,
       slides: [activeVerse.text],
       currentSlideIndex: 0,
-      theme: 'dark',
       blackScreen: false,
-      fontSize: 48,
-      fontFamily: 'font-sans',
-      alignment: 'center',
       activeType: 'bible',
     });
 

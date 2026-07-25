@@ -170,15 +170,14 @@ export function PresentationWindow() {
     ? 'transparent' 
     : (isDarkCanvas ? '#ffffff' : '#0f172a'); // text-slate-900 is #0f172a
 
-  const fontSizeVal = state?.fontSize || 48;
+  const fontSizeVal = typeof state?.fontSize === 'number' && !isNaN(state.fontSize) ? state.fontSize : (Number(state?.fontSize) || 48);
 
   return (
     <div
       className="fixed inset-0 w-screen h-screen flex flex-col justify-between p-12 overflow-hidden select-none transition-colors duration-500"
       style={{ 
         backgroundColor: bgColor, 
-        color: textColor,
-        fontSize: `${fontSizeVal}px`
+        color: textColor
       }}
     >
       {/* Header Info (Small metadata to identify active song/chapter subtly) */}
@@ -200,8 +199,8 @@ export function PresentationWindow() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -15 }}
               transition={{ duration: 0.25, ease: 'easeInOut' }}
-              className={`max-w-6xl w-full leading-snug whitespace-pre-wrap break-words ${fontClass}`}
-              style={{ fontSize: `${fontSizeVal}px`, color: textColor }}
+              className={`max-w-7xl w-full whitespace-pre-wrap break-words ${fontClass}`}
+              style={{ fontSize: `${fontSizeVal}px`, lineHeight: 1.2, color: textColor }}
             >
               {activeSlideContent}
             </motion.div>
