@@ -1,0 +1,85 @@
+{
+  "entities": {
+    "Song": {
+      "title": "Song",
+      "description": "A song with lyrics and metadata.",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "The title of the song."
+        },
+        "songNo": {
+          "type": "number",
+          "description": "The unique song number."
+        },
+        "genre": {
+          "type": "string",
+          "description": "The genre of the song."
+        },
+        "lyrics": {
+          "type": "string",
+          "description": "The full lyrics of the song."
+        },
+        "submittedBy": {
+          "type": "string",
+          "description": "The UID of the user who submitted the song."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the song was added."
+        }
+      },
+      "required": ["title", "songNo", "lyrics", "submittedBy", "createdAt"]
+    },
+    "Presentation": {
+      "title": "Presentation",
+      "description": "Active presentation state for real-time remote synchronization.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "subtitle": { "type": "string" },
+        "slides": { 
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "currentSlideIndex": { "type": "number" },
+        "theme": { "type": "string", "enum": ["dark", "light"] },
+        "blackScreen": { "type": "boolean" },
+        "fontSize": { "type": "number" },
+        "fontFamily": { "type": "string" },
+        "alignment": { "type": "string", "enum": ["left", "center", "right"] },
+        "activeType": { "type": "string", "enum": ["song", "bible", "custom"] },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "slides", "currentSlideIndex", "theme", "blackScreen", "fontSize", "fontFamily", "alignment", "activeType", "updatedAt"]
+    },
+    "User": {
+      "title": "User",
+      "description": "User profile information.",
+      "type": "object",
+      "properties": {
+        "displayName": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "photoURL": { "type": "string" },
+        "role": { "type": "string", "enum": ["user", "contributor", "admin"] }
+      },
+      "required": ["displayName", "email", "role"]
+    }
+  },
+  "firestore": {
+    "/songs/{songId}": {
+      "schema": "Song",
+      "description": "Collection of all songs."
+    },
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile documents."
+    },
+    "/presentation/{docId}": {
+      "schema": "Presentation",
+      "description": "Real-time active state for external displays and projector screens."
+    }
+  }
+}
