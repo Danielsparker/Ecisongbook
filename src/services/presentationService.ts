@@ -11,7 +11,8 @@ export interface PresentationState {
   fontSize: number; // in pixels
   fontFamily: string;
   alignment: 'left' | 'center' | 'right';
-  activeType: 'song' | 'bible' | 'custom';
+  activeType: 'song' | 'bible' | 'custom' | 'none';
+  isExited?: boolean;
 }
 
 export const DEFAULT_STATE: PresentationState = {
@@ -25,6 +26,7 @@ export const DEFAULT_STATE: PresentationState = {
   fontFamily: 'font-sans',
   alignment: 'center',
   activeType: 'song',
+  isExited: false,
 };
 
 // Create a BroadcastChannel for modern browsers (with fallback to localStorage for iframe support)
@@ -86,6 +88,7 @@ export async function publishPresentationStateToFirestore(state: PresentationSta
       fontFamily: state.fontFamily || 'font-sans',
       alignment: state.alignment || 'center',
       activeType: state.activeType || 'song',
+      isExited: !!state.isExited,
       updatedAt: new Date().toISOString()
     });
   } catch (error) {
@@ -131,7 +134,9 @@ export function clearPresentationState() {
     subtitle: '',
     slides: [],
     currentSlideIndex: 0,
-    blackScreen: true,
+    blackScreen: false,
+    activeType: 'none',
+    isExited: true,
   };
   publishPresentationState(clearedState);
 }

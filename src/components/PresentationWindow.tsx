@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { Tv } from 'lucide-react';
 import { getPresentationState, PresentationState, DEFAULT_STATE, publishPresentationState } from '../services/presentationService';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -23,11 +24,9 @@ export function PresentationWindow() {
               localStorage.setItem('eci_presentation_state', JSON.stringify(event.data));
             } catch (e) {}
 
-            // If presenter exited (empty slides + blackout), close popup window if applicable
-            if (event.data.blackScreen && (!event.data.slides || event.data.slides.length === 0)) {
-              if (window.opener && !window.opener.closed) {
-                try { window.close(); } catch (e) {}
-              }
+            // If presenter exited, attempt to close popup window instantly
+            if (event.data.isExited || (event.data.activeType === 'none' && (!event.data.slides || event.data.slides.length === 0))) {
+              try { window.close(); } catch (e) {}
             }
           }
         };
@@ -54,18 +53,17 @@ export function PresentationWindow() {
               fontSize: data.fontSize || 48,
               fontFamily: data.fontFamily || 'font-sans',
               alignment: data.alignment || 'center',
-              activeType: data.activeType || 'song'
+              activeType: data.activeType || 'song',
+              isExited: !!data.isExited
             };
             setState(nextState);
             try {
               localStorage.setItem('eci_presentation_state', JSON.stringify(nextState));
             } catch (e) {}
 
-            // If presenter exited (empty slides + blackout), close popup window if applicable
-            if (nextState.blackScreen && nextState.slides.length === 0) {
-              if (window.opener && !window.opener.closed) {
-                try { window.close(); } catch (e) {}
-              }
+            // If presenter exited, attempt to close popup window instantly
+            if (nextState.isExited || (nextState.activeType === 'none' && nextState.slides.length === 0)) {
+              try { window.close(); } catch (e) {}
             }
           }
         }
@@ -84,10 +82,8 @@ export function PresentationWindow() {
           const parsed = JSON.parse(saved);
           if (parsed) {
             setState(parsed);
-            if (parsed.blackScreen && (!parsed.slides || parsed.slides.length === 0)) {
-              if (window.opener && !window.opener.closed) {
-                try { window.close(); } catch (e) {}
-              }
+            if (parsed.isExited || (parsed.activeType === 'none' && (!parsed.slides || parsed.slides.length === 0))) {
+              try { window.close(); } catch (e) {}
             }
           }
         } catch (e) {}
@@ -165,6 +161,45 @@ export function PresentationWindow() {
   const slides = state?.slides || [];
   const currentSlideIndex = state?.currentSlideIndex ?? 0;
   const activeSlideContent = slides[currentSlideIndex] || '';
+
+  // Render Presentation Exited screen if exited or activeType is none with no slides
+  if (state?.isExited || (state?.activeType === 'none' && slides.length === 0 && !state?.title)) {
+    return (
+      <div className="fixed inset-0 w-screen h-screen flex flex-col items-center justify-center bg-slate-950 text-slate-100 p-6 select-none font-sans">
+        <div className="max-w-md w-full text-center flex flex-col items-center space-y-6 bg-slate-900/80 border border-slate-800 p-8 rounded-3xl shadow-2xl backdrop-blur-md">
+          <div className="w-16 h-16 rounded-2xl bg-slate-800/80 flex items-center justify-center border border-slate-700/50 text-slate-400">
+            <Tv className="w-8 h-8 opacity-60" />
+          </div>
+
+          <div className="space-y-2">
+            <h2 className="text-2xl font-bold tracking-tight text-white">Presentation Ended</h2>
+            <p className="text-sm text-slate-400 leading-relaxed">
+              The presenter has exited the presentation session. You can close this window or return to the songbook.
+            </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-3 w-full pt-2">
+            <button
+              onClick={() => {
+                try { window.close(); } catch (e) {}
+              }}
+              className="flex-1 inline-flex items-center justify-center h-11 px-5 rounded-xl font-medium bg-brand-600 hover:bg-brand-500 text-white transition-colors duration-150 shadow-lg shadow-brand-950/50 cursor-pointer"
+            >
+              Close Window
+            </button>
+            <button
+              onClick={() => {
+                window.location.href = window.location.origin;
+              }}
+              className="flex-1 inline-flex items-center justify-center h-11 px-5 rounded-xl font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors duration-150 cursor-pointer"
+            >
+              Return to Songbook
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Class styling maps
   const alignmentClass = {
