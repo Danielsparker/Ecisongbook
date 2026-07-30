@@ -59,11 +59,16 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
   // Local presentation state mimicking the remote projector state
   const [presState, setPresState] = useState<PresentationState>(() => {
     const saved = getPresentationState();
+    const baseState = {
+      ...saved,
+      isExited: false,
+      blackScreen: false,
+    };
     // If we have an initial active song, load it up!
     if (initialActiveSong) {
       const slides = splitLyricsToSlides(initialActiveSong.lyrics);
       return {
-        ...saved,
+        ...baseState,
         title: initialActiveSong.title,
         subtitle: `Song #${initialActiveSong.songNo}`,
         slides: slides,
@@ -76,7 +81,7 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
       const firstSong = songs[0];
       const slides = splitLyricsToSlides(firstSong.lyrics);
       return {
-        ...saved,
+        ...baseState,
         title: firstSong.title,
         subtitle: `Song #${firstSong.songNo}`,
         slides: slides,
@@ -84,7 +89,7 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
         activeType: 'song'
       };
     }
-    return saved;
+    return baseState;
   });
 
   const [projectorWindow, setProjectorWindow] = useState<Window | null>(null);
@@ -228,7 +233,9 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
   };
 
   const handleLaunchProjector = () => {
-    publishPresentationState(presState);
+    const activeState = { ...presState, isExited: false, blackScreen: false };
+    setPresState(activeState);
+    publishPresentationState(activeState);
     const win = openPresentationWindow();
     setProjectorWindow(win);
   };
