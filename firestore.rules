@@ -123,7 +123,7 @@ service cloud.firestore {
 
     match /presentation/{docId} {
       allow read: if true;
-      allow write: if isAuthenticated() && (isAdmin() || isContributor()) && isValidPresentation(request.resource.data);
+      allow write: if isValidPresentation(request.resource.data);
     }
   }
 }

@@ -13,6 +13,7 @@ export interface PresentationState {
   alignment: 'left' | 'center' | 'right';
   activeType: 'song' | 'bible' | 'custom' | 'none';
   isExited?: boolean;
+  updatedAt?: string;
 }
 
 export const DEFAULT_STATE: PresentationState = {
@@ -27,6 +28,7 @@ export const DEFAULT_STATE: PresentationState = {
   alignment: 'center',
   activeType: 'song',
   isExited: false,
+  updatedAt: new Date().toISOString()
 };
 
 // Create a BroadcastChannel for modern browsers (with fallback to localStorage for iframe support)
@@ -89,7 +91,7 @@ export async function publishPresentationStateToFirestore(state: PresentationSta
       alignment: state.alignment || 'center',
       activeType: state.activeType || 'song',
       isExited: !!state.isExited,
-      updatedAt: new Date().toISOString()
+      updatedAt: state.updatedAt || new Date().toISOString()
     });
   } catch (error) {
     console.warn('Failed to publish presentation state to Firestore:', error);
@@ -102,13 +104,18 @@ export async function publishPresentationStateToFirestore(state: PresentationSta
 export function publishPresentationState(state: PresentationState) {
   if (typeof window === 'undefined') return;
 
+  const stateWithTimestamp: PresentationState = {
+    ...state,
+    updatedAt: new Date().toISOString()
+  };
+
   // Save to localStorage so if the presentation window is refreshed, it recovers state
-  localStorage.setItem('eci_presentation_state', JSON.stringify(state));
+  localStorage.setItem('eci_presentation_state', JSON.stringify(stateWithTimestamp));
 
   // Send via BroadcastChannel for real-time performance
   if (broadcastChannel) {
     try {
-      broadcastChannel.postMessage(state);
+      broadcastChannel.postMessage(stateWithTimestamp);
     } catch (e) {
       console.error('Error posting presentation state to channel:', e);
     }
@@ -121,7 +128,7 @@ export function publishPresentationState(state: PresentationState) {
   } catch (e) {}
 
   // Publish to Firestore in the background for remote/external TV presentation sync
-  publishPresentationStateToFirestore(state);
+  publishPresentationStateToFirestore(stateWithTimestamp);
 }
 
 /**

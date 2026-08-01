@@ -51,9 +51,18 @@ export function PresentationWindow() {
               fontFamily: data.fontFamily || 'font-sans',
               alignment: data.alignment || 'center',
               activeType: data.activeType || 'song',
-              isExited: !!data.isExited
+              isExited: !!data.isExited,
+              updatedAt: data.updatedAt || ''
             };
-            setState(nextState);
+
+            setState((prev) => {
+              // Ignore stale updates if timestamp is older
+              if (nextState.updatedAt && prev?.updatedAt && nextState.updatedAt < prev.updatedAt) {
+                return prev;
+              }
+              return nextState;
+            });
+
             try {
               localStorage.setItem('eci_presentation_state', JSON.stringify(nextState));
             } catch (e) {}
