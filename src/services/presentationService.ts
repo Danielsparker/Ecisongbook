@@ -162,6 +162,13 @@ export function getPresentationState(): PresentationState {
 export function openPresentationWindow(isNewWindow: boolean = false): Window | null {
   if (typeof window === 'undefined') return null;
   
+  // Reset isExited flag so the new window opens in active/standby state
+  const currentState = getPresentationState();
+  if (currentState.isExited) {
+    const resetState = { ...currentState, isExited: false };
+    publishPresentationState(resetState);
+  }
+
   const url = `${window.location.origin}${window.location.pathname}?mode=presentation`;
   const name = isNewWindow ? `eci-presentation-window-${Date.now()}` : 'eci-presentation-window';
   const features = 'width=1024,height=768,menubar=no,toolbar=no,location=no,status=no,personalbar=no';

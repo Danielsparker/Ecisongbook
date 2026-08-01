@@ -7,6 +7,9 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({
+  prompt: 'select_account'
+});
 
 // Test Firestore connection on boot as per Firebase guidelines
 export async function testFirestoreConnection(): Promise<boolean> {
@@ -32,21 +35,25 @@ export const loginWithGoogle = async () => {
   
   loginInProgress = true;
   try {
-    const result = await signInWithPopup(auth, googleProvider, browserPopupRedirectResolver);
+    const result = await signInWithPopup(auth, googleProvider);
     const user = result.user;
     
-    // Create/Update user profile
-    const userRef = doc(db, 'users', user.uid);
-    const userSnap = await getDoc(userRef);
-    
-    if (!userSnap.exists()) {
-      await setDoc(userRef, {
-        displayName: user.displayName,
-        email: user.email,
-        photoURL: user.photoURL,
-        role: 'user',
-        createdAt: serverTimestamp()
-      });
+    // Create/Update user profile safely
+    try {
+      const userRef = doc(db, 'users', user.uid);
+      const userSnap = await getDoc(userRef);
+      
+      if (!userSnap.exists()) {
+        await setDoc(userRef, {
+          displayName: user.displayName || user.email || 'User',
+          email: user.email || '',
+          photoURL: user.photoURL || '',
+          role: 'user',
+          createdAt: serverTimestamp()
+        });
+      }
+    } catch (dbErr) {
+      console.warn("Could not sync user profile to Firestore:", dbErr);
     }
     return user;
   } catch (error: any) {
