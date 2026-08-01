@@ -8,6 +8,12 @@ import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 export function PresentationWindow() {
   const [state, setState] = useState<PresentationState>(DEFAULT_STATE);
   const [isFirestoreConnected, setIsFirestoreConnected] = useState<boolean>(true);
+  // Grace period: ignore isExited=true for first 3s after mount to avoid stale Firestore state
+  const [isStartupGracePeriod, setIsStartupGracePeriod] = useState(true);
+  useEffect(() => {
+    const timer = setTimeout(() => setIsStartupGracePeriod(false), 3000);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     // Load initial state
@@ -166,7 +172,7 @@ export function PresentationWindow() {
   const activeSlideContent = slides[currentSlideIndex] || '';
 
   // Render Presentation Exited screen if exited explicitly
-  if (state?.isExited) {
+  if (state?.isExited && !isStartupGracePeriod) {
     return (
       <div className="fixed inset-0 w-screen h-screen flex flex-col items-center justify-center bg-slate-950 text-slate-100 p-6 select-none font-sans">
         <div className="max-w-md w-full text-center flex flex-col items-center space-y-6 bg-slate-900/80 border border-slate-800 p-8 rounded-3xl shadow-2xl backdrop-blur-md">

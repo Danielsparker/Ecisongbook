@@ -169,12 +169,11 @@ export function getPresentationState(): PresentationState {
 export function openPresentationWindow(isNewWindow: boolean = false): Window | null {
   if (typeof window === 'undefined') return null;
   
-  // Reset isExited flag so the new window opens in active/standby state
+  // Always reset isExited=false and push to Firestore BEFORE opening the window.
+  // This ensures the presentation window never reads a stale "exited" state from a previous session.
   const currentState = getPresentationState();
-  if (currentState.isExited) {
-    const resetState = { ...currentState, isExited: false };
-    publishPresentationState(resetState);
-  }
+  const resetState = { ...currentState, isExited: false };
+  publishPresentationState(resetState);
 
   const url = `${window.location.origin}${window.location.pathname}?mode=presentation`;
   const name = isNewWindow ? `eci-presentation-window-${Date.now()}` : 'eci-presentation-window';
