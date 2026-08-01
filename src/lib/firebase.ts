@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, browserPopupRedirectResolver } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, browserLocalPersistence, setPersistence } from 'firebase/auth';
 import { getFirestore, collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, doc, getDoc, setDoc, getDocFromServer } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
@@ -9,6 +9,33 @@ export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({
   prompt: 'select_account'
+});
+
+// Ensure auth persists across page loads (required for redirect-based login)
+setPersistence(auth, browserLocalPersistence).catch(console.error);
+
+// Handle the result of a redirect-based Google sign-in.
+// This runs on every page load and completes the login if the user was redirected back.
+getRedirectResult(auth).then(async (result) => {
+  if (!result) return;
+  const user = result.user;
+  try {
+    const userRef = doc(db, 'users', user.uid);
+    const userSnap = await getDoc(userRef);
+    if (!userSnap.exists()) {
+      await setDoc(userRef, {
+        displayName: user.displayName || user.email || 'User',
+        email: user.email || '',
+        photoURL: user.photoURL || '',
+        role: 'user',
+        createdAt: serverTimestamp()
+      });
+    }
+  } catch (dbErr) {
+    console.warn('Could not sync user profile to Firestore after redirect:', dbErr);
+  }
+}).catch((error) => {
+  console.error('Redirect sign-in result error:', error);
 });
 
 // Test Firestore connection on boot as per Firebase guidelines
@@ -32,17 +59,17 @@ export const loginWithGoogle = async () => {
     console.warn("Login already in progress");
     return;
   }
-  
+
   loginInProgress = true;
   try {
+    // Try popup first — works in standard browsers
     const result = await signInWithPopup(auth, googleProvider);
     const user = result.user;
-    
+
     // Create/Update user profile safely
     try {
       const userRef = doc(db, 'users', user.uid);
       const userSnap = await getDoc(userRef);
-      
       if (!userSnap.exists()) {
         await setDoc(userRef, {
           displayName: user.displayName || user.email || 'User',
@@ -57,16 +84,25 @@ export const loginWithGoogle = async () => {
     }
     return user;
   } catch (error: any) {
-    if (error.code === 'auth/popup-blocked') {
-      alert("The login popup was blocked by your browser. Please allow popups for this site and try again.");
-    } else if (error.code === 'auth/cancelled-popup-request') {
-      console.log("A previous login request was cancelled.");
-    } else if (error.code === 'auth/popup-closed-by-user') {
-      console.log("Login popup closed by user.");
+    if (
+      error.code === 'auth/popup-blocked' ||
+      error.code === 'auth/popup-closed-by-user' ||
+      error.code === 'auth/cancelled-popup-request' ||
+      error.code === 'auth/operation-not-supported-in-this-environment'
+    ) {
+      // Popup unavailable — fall back to full-page redirect login
+      console.warn('Popup sign-in unavailable, falling back to redirect:', error.code);
+      try {
+        await signInWithRedirect(auth, googleProvider);
+        // Page will redirect — execution stops here
+      } catch (redirectError: any) {
+        console.error('Redirect sign-in also failed:', redirectError);
+        throw redirectError;
+      }
     } else {
       console.error("Login failed:", error);
+      throw error;
     }
-    throw error;
   } finally {
     loginInProgress = false;
   }
