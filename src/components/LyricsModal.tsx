@@ -15,6 +15,22 @@ interface LyricsModalProps {
 export function LyricsModal({ song, isOpen, onClose, onPresent }: LyricsModalProps) {
   if (!song) return null;
 
+  const handlePDFDownload = () => {
+    try {
+      downloadAsPDF(song);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to export PDF');
+    }
+  };
+
+  const handlePPTDownload = () => {
+    try {
+      downloadAsPPT(song);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to export PPT');
+    }
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-3xl w-[95vw] h-[85vh] flex flex-col p-0 overflow-hidden rounded-3xl dark:bg-slate-950 dark:border-slate-800">
@@ -52,7 +68,7 @@ export function LyricsModal({ song, isOpen, onClose, onPresent }: LyricsModalPro
               variant="outline" 
               size="sm" 
               className="gap-2 rounded-xl border-slate-200"
-              onClick={() => downloadAsPDF(song)}
+              onClick={handlePDFDownload}
             >
               <FileText className="h-4 w-4 text-red-500" />
               PDF
@@ -61,7 +77,7 @@ export function LyricsModal({ song, isOpen, onClose, onPresent }: LyricsModalPro
               variant="outline" 
               size="sm" 
               className="gap-2 rounded-xl border-slate-200"
-              onClick={() => downloadAsPPT(song)}
+              onClick={handlePPTDownload}
             >
               <Presentation className="h-4 w-4 text-orange-500" />
               PPT

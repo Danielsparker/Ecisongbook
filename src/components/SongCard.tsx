@@ -46,6 +46,7 @@ export function SongCard({ song, onView, onPresent }: SongCardProps) {
           variant="outline"
           size="icon"
           title="Present Live"
+          aria-label={`Present ${song.title} live`}
           className="h-10 w-10 shrink-0 rounded-xl border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-950"
           onClick={(e) => {
             e.stopPropagation();

@@ -17,20 +17,41 @@ export function SubmitSongDialog({ isOpen, onClose, onSubmit }: SubmitSongDialog
   const [songNo, setSongNo] = useState('');
   const [genre, setGenre] = useState('');
   const [lyrics, setLyrics] = useState('');
+  const [honeypot, setHoneypot] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    // Anti-spam honeypot check
+    if (honeypot) {
+      onClose();
+      return;
+    }
+
+    const cleanTitle = title.trim();
+    const cleanLyrics = lyrics.trim();
+
+    if (!cleanTitle || cleanTitle.length > 200) {
+      alert("Song title must be between 1 and 200 characters.");
+      return;
+    }
+
+    if (!cleanLyrics || cleanLyrics.length > 10000) {
+      alert("Lyrics must be between 1 and 10,000 characters.");
+      return;
+    }
+
     onSubmit({
-      title,
-      songNo: parseInt(songNo),
-      genre,
-      lyrics
+      title: cleanTitle,
+      songNo: parseInt(songNo, 10) || 0,
+      genre: genre.trim().slice(0, 100),
+      lyrics: cleanLyrics
     });
     // Reset form
     setTitle('');
     setSongNo('');
     setGenre('');
     setLyrics('');
+    setHoneypot('');
     onClose();
   };
 
@@ -47,6 +68,16 @@ export function SubmitSongDialog({ isOpen, onClose, onSubmit }: SubmitSongDialog
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
           <div className="flex-1 overflow-y-auto px-6">
             <div className="py-4 space-y-4">
+              {/* Hidden honeypot field for anti-bot protection */}
+              <input
+                type="text"
+                name="website_url"
+                value={honeypot}
+                onChange={(e) => setHoneypot(e.target.value)}
+                style={{ display: 'none' }}
+                tabIndex={-1}
+                autoComplete="off"
+              />
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="title" className="dark:text-slate-300">Song Title</Label>
