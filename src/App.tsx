@@ -42,8 +42,8 @@ export default function App() {
   const [publicSubmissions, setPublicSubmissions] = useState(true);
 
   const isAdmin = useMemo(() => {
-    return user?.email === "danieldec996@gmail.com" || userRole === 'admin';
-  }, [user, userRole]);
+    return userRole === 'admin';
+  }, [userRole]);
 
   const canSubmit = useMemo(() => {
     if (publicSubmissions) return true;

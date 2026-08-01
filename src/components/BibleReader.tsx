@@ -224,6 +224,7 @@ export function BibleReader() {
       currentSlideIndex: 0,
       blackScreen: false,
       activeType: 'bible',
+      isExited: false,
     });
 
     const confirmLaunch = confirm("Verse sent to projector! Would you like to open the separate presentation window now?");

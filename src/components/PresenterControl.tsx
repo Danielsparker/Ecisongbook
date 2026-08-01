@@ -32,6 +32,7 @@ import { Song, BibleVerse } from '../types';
 import { 
   getPresentationState, 
   publishPresentationState, 
+  clearPresentationState,
   splitLyricsToSlides, 
   DEFAULT_STATE, 
   openPresentationWindow,
@@ -58,11 +59,16 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
   // Local presentation state mimicking the remote projector state
   const [presState, setPresState] = useState<PresentationState>(() => {
     const saved = getPresentationState();
+    const baseState = {
+      ...saved,
+      isExited: false,
+      blackScreen: false,
+    };
     // If we have an initial active song, load it up!
     if (initialActiveSong) {
       const slides = splitLyricsToSlides(initialActiveSong.lyrics);
       return {
-        ...saved,
+        ...baseState,
         title: initialActiveSong.title,
         subtitle: `Song #${initialActiveSong.songNo}`,
         slides: slides,
@@ -75,7 +81,7 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
       const firstSong = songs[0];
       const slides = splitLyricsToSlides(firstSong.lyrics);
       return {
-        ...saved,
+        ...baseState,
         title: firstSong.title,
         subtitle: `Song #${firstSong.songNo}`,
         slides: slides,
@@ -83,7 +89,7 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
         activeType: 'song'
       };
     }
-    return saved;
+    return baseState;
   });
 
   const [projectorWindow, setProjectorWindow] = useState<Window | null>(null);
@@ -227,9 +233,27 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
   };
 
   const handleLaunchProjector = () => {
-    publishPresentationState(presState);
+    const activeState = { ...presState, isExited: false, blackScreen: false };
+    setPresState(activeState);
+    publishPresentationState(activeState);
     const win = openPresentationWindow();
     setProjectorWindow(win);
+  };
+
+  const handleExit = () => {
+    // Instantly clear presentation state in Firebase, BroadcastChannel, and LocalStorage
+    clearPresentationState();
+
+    // Close local projector window if opened
+    if (projectorWindow && !projectorWindow.closed) {
+      try {
+        projectorWindow.close();
+      } catch (e) {
+        console.warn("Could not close projector window:", e);
+      }
+    }
+
+    onExit();
   };
 
   const toggleProjectorFullscreen = () => {
@@ -315,7 +339,7 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
           </Button>
 
           <Button 
-            onClick={onExit} 
+            onClick={handleExit} 
             variant="ghost"
             size="sm"
             className="gap-1 h-9 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-800"

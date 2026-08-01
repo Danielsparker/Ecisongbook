@@ -66,7 +66,7 @@ service cloud.firestore {
     }
 
     function isValidPresentation(data) {
-      return data.keys().hasOnly(['title', 'subtitle', 'slides', 'currentSlideIndex', 'theme', 'blackScreen', 'fontSize', 'fontFamily', 'alignment', 'activeType', 'updatedAt']) &&
+      return data.keys().hasOnly(['title', 'subtitle', 'slides', 'currentSlideIndex', 'theme', 'blackScreen', 'fontSize', 'fontFamily', 'alignment', 'activeType', 'isExited', 'updatedAt']) &&
              data.title is string &&
              data.slides is list &&
              data.currentSlideIndex is int &&
@@ -75,20 +75,21 @@ service cloud.firestore {
              data.fontSize is int &&
              data.fontFamily is string &&
              data.alignment in ['left', 'center', 'right'] &&
-             data.activeType in ['song', 'bible', 'custom'] &&
+             data.activeType in ['song', 'bible', 'custom', 'none'] &&
              data.updatedAt is string &&
-             (!('subtitle' in data) || data.subtitle is string);
+             (!('subtitle' in data) || data.subtitle is string) &&
+             (!('isExited' in data) || data.isExited is bool);
     }
 
     function isAdmin() {
       return isAuthenticated() && 
-             (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
-              (request.auth.token.email == "danieldec996@gmail.com" && request.auth.token.email_verified == true));
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
     function isContributor() {
       return isAuthenticated() && 
              (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'contributor' ||
+              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
               get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'viewer');
     }
 
@@ -122,7 +123,7 @@ service cloud.firestore {
 
     match /presentation/{docId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if isAuthenticated() && (isAdmin() || isContributor()) && isValidPresentation(request.resource.data);
     }
   }
 }
