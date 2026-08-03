@@ -8,12 +8,6 @@ import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 export function PresentationWindow() {
   const [state, setState] = useState<PresentationState>(DEFAULT_STATE);
   const [isFirestoreConnected, setIsFirestoreConnected] = useState<boolean>(true);
-  // Grace period: ignore isExited=true for first 3s after mount to avoid stale Firestore state
-  const [isStartupGracePeriod, setIsStartupGracePeriod] = useState(true);
-  useEffect(() => {
-    const timer = setTimeout(() => setIsStartupGracePeriod(false), 3000);
-    return () => clearTimeout(timer);
-  }, []);
 
   useEffect(() => {
     // Load initial state
@@ -30,6 +24,11 @@ export function PresentationWindow() {
             try {
               localStorage.setItem('eci_presentation_state', JSON.stringify(event.data));
             } catch (e) {}
+
+            // If presenter exited, attempt to close popup window instantly
+            if (event.data.isExited || (event.data.activeType === 'none' && (!event.data.slides || event.data.slides.length === 0))) {
+              try { window.close(); } catch (e) {}
+            }
           }
         };
       }
@@ -57,21 +56,17 @@ export function PresentationWindow() {
               fontFamily: data.fontFamily || 'font-sans',
               alignment: data.alignment || 'center',
               activeType: data.activeType || 'song',
-              isExited: !!data.isExited,
-              updatedAt: data.updatedAt || ''
+              isExited: !!data.isExited
             };
-
-            setState((prev) => {
-              // Ignore stale updates if timestamp is older
-              if (nextState.updatedAt && prev?.updatedAt && nextState.updatedAt < prev.updatedAt) {
-                return prev;
-              }
-              return nextState;
-            });
-
+            setState(nextState);
             try {
               localStorage.setItem('eci_presentation_state', JSON.stringify(nextState));
             } catch (e) {}
+
+            // If presenter exited, attempt to close popup window instantly
+            if (nextState.isExited || (nextState.activeType === 'none' && nextState.slides.length === 0 && !nextState.title)) {
+              try { window.close(); } catch (e) {}
+            }
           }
         }
       }, (error) => {
@@ -94,6 +89,9 @@ export function PresentationWindow() {
           const parsed = JSON.parse(saved);
           if (parsed) {
             setState(parsed);
+            if (parsed.isExited || (parsed.activeType === 'none' && (!parsed.slides || parsed.slides.length === 0) && !parsed.title)) {
+              try { window.close(); } catch (e) {}
+            }
           }
         } catch (e) {}
       }
@@ -171,8 +169,8 @@ export function PresentationWindow() {
   const currentSlideIndex = state?.currentSlideIndex ?? 0;
   const activeSlideContent = slides[currentSlideIndex] || '';
 
-  // Render Presentation Exited screen if exited explicitly
-  if (state?.isExited && !isStartupGracePeriod) {
+  // Render Presentation Exited screen if exited or activeType is none with no slides
+  if (state?.isExited || (state?.activeType === 'none' && slides.length === 0 && !state?.title)) {
     return (
       <div className="fixed inset-0 w-screen h-screen flex flex-col items-center justify-center bg-slate-950 text-slate-100 p-6 select-none font-sans">
         <div className="max-w-md w-full text-center flex flex-col items-center space-y-6 bg-slate-900/80 border border-slate-800 p-8 rounded-3xl shadow-2xl backdrop-blur-md">

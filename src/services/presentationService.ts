@@ -13,7 +13,6 @@ export interface PresentationState {
   alignment: 'left' | 'center' | 'right';
   activeType: 'song' | 'bible' | 'custom' | 'none';
   isExited?: boolean;
-  updatedAt?: string;
 }
 
 export const DEFAULT_STATE: PresentationState = {
@@ -28,7 +27,6 @@ export const DEFAULT_STATE: PresentationState = {
   alignment: 'center',
   activeType: 'song',
   isExited: false,
-  updatedAt: new Date().toISOString()
 };
 
 // Create a BroadcastChannel for modern browsers (with fallback to localStorage for iframe support)
@@ -91,7 +89,7 @@ export async function publishPresentationStateToFirestore(state: PresentationSta
       alignment: state.alignment || 'center',
       activeType: state.activeType || 'song',
       isExited: !!state.isExited,
-      updatedAt: state.updatedAt || new Date().toISOString()
+      updatedAt: new Date().toISOString()
     });
   } catch (error) {
     console.warn('Failed to publish presentation state to Firestore:', error);
@@ -104,18 +102,13 @@ export async function publishPresentationStateToFirestore(state: PresentationSta
 export function publishPresentationState(state: PresentationState) {
   if (typeof window === 'undefined') return;
 
-  const stateWithTimestamp: PresentationState = {
-    ...state,
-    updatedAt: new Date().toISOString()
-  };
-
   // Save to localStorage so if the presentation window is refreshed, it recovers state
-  localStorage.setItem('eci_presentation_state', JSON.stringify(stateWithTimestamp));
+  localStorage.setItem('eci_presentation_state', JSON.stringify(state));
 
   // Send via BroadcastChannel for real-time performance
   if (broadcastChannel) {
     try {
-      broadcastChannel.postMessage(stateWithTimestamp);
+      broadcastChannel.postMessage(state);
     } catch (e) {
       console.error('Error posting presentation state to channel:', e);
     }
@@ -128,7 +121,7 @@ export function publishPresentationState(state: PresentationState) {
   } catch (e) {}
 
   // Publish to Firestore in the background for remote/external TV presentation sync
-  publishPresentationStateToFirestore(stateWithTimestamp);
+  publishPresentationStateToFirestore(state);
 }
 
 /**
@@ -169,12 +162,6 @@ export function getPresentationState(): PresentationState {
 export function openPresentationWindow(isNewWindow: boolean = false): Window | null {
   if (typeof window === 'undefined') return null;
   
-  // Always reset isExited=false and push to Firestore BEFORE opening the window.
-  // This ensures the presentation window never reads a stale "exited" state from a previous session.
-  const currentState = getPresentationState();
-  const resetState = { ...currentState, isExited: false };
-  publishPresentationState(resetState);
-
   const url = `${window.location.origin}${window.location.pathname}?mode=presentation`;
   const name = isNewWindow ? `eci-presentation-window-${Date.now()}` : 'eci-presentation-window';
   const features = 'width=1024,height=768,menubar=no,toolbar=no,location=no,status=no,personalbar=no';

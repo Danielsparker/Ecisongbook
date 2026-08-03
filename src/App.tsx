@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, addDoc, updateDoc, deleteDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
 import { Music2, Loader2, Plus, BookOpen } from 'lucide-react';
 
@@ -17,6 +17,7 @@ import { SongCard } from './components/SongCard';
 import { BibleReader } from './components/BibleReader';
 import { LyricsModal } from './components/LyricsModal';
 import { SubmitSongDialog } from './components/SubmitSongDialog';
+import { EditSongDialog } from './components/EditSongDialog';
 import { SettingsDialog } from './components/SettingsDialog';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Button } from '@/components/ui/button';
@@ -34,6 +35,7 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSong, setSelectedSong] = useState<Song | null>(null);
   const [presenterActiveSong, setPresenterActiveSong] = useState<Song | null>(null);
+  const [editingSong, setEditingSong] = useState<Song | null>(null);
   const [isSubmitOpen, setIsSubmitOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
@@ -57,6 +59,38 @@ export default function App() {
       return;
     }
     setIsSubmitOpen(true);
+  };
+
+  const handleUpdateSong = async (songId: string, updatedData: { title: string; songNo: number; genre: string; lyrics: string }) => {
+    try {
+      const songRef = doc(db, 'songs', songId);
+      const existingSong = songs.find(s => s.id === songId);
+      await updateDoc(songRef, {
+        ...updatedData,
+        updatedAt: serverTimestamp(),
+        ...(existingSong?.createdAt ? { createdAt: existingSong.createdAt } : {}),
+        ...(existingSong?.submittedBy ? { submittedBy: existingSong.submittedBy } : { submittedBy: user?.uid || "anonymous" })
+      });
+      if (selectedSong?.id === songId) {
+        setSelectedSong(prev => prev ? { ...prev, ...updatedData } : null);
+      }
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `songs/${songId}`);
+    }
+  };
+
+  const handleDeleteSong = async (songId: string) => {
+    try {
+      await deleteDoc(doc(db, 'songs', songId));
+      if (selectedSong?.id === songId) {
+        setSelectedSong(null);
+      }
+      if (editingSong?.id === songId) {
+        setEditingSong(null);
+      }
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `songs/${songId}`);
+    }
   };
 
   useEffect(() => {
@@ -292,7 +326,13 @@ export default function App() {
                           exit={{ opacity: 0, scale: 0.9 }}
                           transition={{ duration: 0.2 }}
                         >
-                          <SongCard song={song} onView={setSelectedSong} onPresent={setPresenterActiveSong} />
+                          <SongCard 
+                            song={song} 
+                            onView={setSelectedSong} 
+                            onPresent={setPresenterActiveSong} 
+                            onEdit={(s) => setEditingSong(s)}
+                            onDelete={(s) => handleDeleteSong(s.id)}
+                          />
                         </motion.div>
                       ))}
                     </div>
@@ -325,12 +365,25 @@ export default function App() {
           isOpen={!!selectedSong} 
           onClose={() => setSelectedSong(null)} 
           onPresent={setPresenterActiveSong}
+          onEdit={(s) => {
+            setSelectedSong(null);
+            setEditingSong(s);
+          }}
+          onDelete={(s) => handleDeleteSong(s.id)}
         />
         
         <SubmitSongDialog 
           isOpen={isSubmitOpen} 
           onClose={() => setIsSubmitOpen(false)} 
           onSubmit={handleSubmitSong} 
+        />
+
+        <EditSongDialog
+          song={editingSong}
+          isOpen={!!editingSong}
+          onClose={() => setEditingSong(null)}
+          onSave={handleUpdateSong}
+          onDelete={handleDeleteSong}
         />
 
         <SettingsDialog 

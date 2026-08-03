@@ -1,4 +1,4 @@
-import { FileText, Presentation, X, Download } from 'lucide-react';
+import { FileText, Presentation, X, Download, Pencil, Trash2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -10,9 +10,11 @@ interface LyricsModalProps {
   isOpen: boolean;
   onClose: () => void;
   onPresent: (song: Song) => void;
+  onEdit?: (song: Song) => void;
+  onDelete?: (song: Song) => void;
 }
 
-export function LyricsModal({ song, isOpen, onClose, onPresent }: LyricsModalProps) {
+export function LyricsModal({ song, isOpen, onClose, onPresent, onEdit, onDelete }: LyricsModalProps) {
   if (!song) return null;
 
   const handlePDFDownload = () => {
@@ -35,7 +37,7 @@ export function LyricsModal({ song, isOpen, onClose, onPresent }: LyricsModalPro
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-3xl w-[95vw] h-[85vh] flex flex-col p-0 overflow-hidden rounded-3xl dark:bg-slate-950 dark:border-slate-800">
         <DialogHeader className="p-6 pb-4 border-b shrink-0 bg-white dark:bg-slate-950 dark:border-slate-800">
-          <div className="flex justify-between items-start">
+          <div className="flex justify-between items-start gap-4">
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-xs font-mono font-bold text-brand-600 uppercase tracking-widest">#{song.songNo}</span>
@@ -47,6 +49,30 @@ export function LyricsModal({ song, isOpen, onClose, onPresent }: LyricsModalPro
                 )}
               </div>
               <DialogTitle className="text-2xl sm:text-3xl font-bold tracking-tight dark:text-white">{song.title}</DialogTitle>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {onEdit && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 rounded-xl text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950/40 border-slate-200 dark:border-slate-800"
+                  onClick={() => onEdit(song)}
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  Edit
+                </Button>
+              )}
+              {onDelete && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 rounded-xl text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40 border-slate-200 dark:border-slate-800"
+                  onClick={() => onDelete(song)}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Delete
+                </Button>
+              )}
             </div>
           </div>
         </DialogHeader>

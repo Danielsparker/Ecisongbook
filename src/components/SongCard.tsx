@@ -1,4 +1,4 @@
-import { FileText, Presentation, ChevronRight, Music2 } from 'lucide-react';
+import { FileText, Presentation, ChevronRight, Music2, Pencil, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -8,9 +8,11 @@ interface SongCardProps {
   song: Song;
   onView: (song: Song) => void;
   onPresent: (song: Song) => void;
+  onEdit: (song: Song) => void;
+  onDelete: (song: Song) => void;
 }
 
-export function SongCard({ song, onView, onPresent }: SongCardProps) {
+export function SongCard({ song, onView, onPresent, onEdit, onDelete }: SongCardProps) {
   return (
     <Card className="group overflow-hidden transition-all hover:shadow-md border-slate-200 dark:border-slate-800 dark:bg-slate-900/50">
       <CardHeader className="pb-2">
@@ -41,6 +43,32 @@ export function SongCard({ song, onView, onPresent }: SongCardProps) {
         >
           View Lyrics
           <ChevronRight className="h-4 w-4" />
+        </Button>
+        <Button 
+          variant="outline"
+          size="icon"
+          title="Edit Song"
+          aria-label={`Edit ${song.title}`}
+          className="h-10 w-10 shrink-0 rounded-xl border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30"
+          onClick={(e) => {
+            e.stopPropagation();
+            onEdit(song);
+          }}
+        >
+          <Pencil className="h-4 w-4" />
+        </Button>
+        <Button 
+          variant="outline"
+          size="icon"
+          title="Delete Song"
+          aria-label={`Delete ${song.title}`}
+          className="h-10 w-10 shrink-0 rounded-xl border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete(song);
+          }}
+        >
+          <Trash2 className="h-4 w-4" />
         </Button>
         <Button 
           variant="outline"
