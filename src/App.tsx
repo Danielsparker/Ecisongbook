@@ -65,7 +65,6 @@ export default function App() {
 
   const handlePresentSong = (song: Song) => {
     setPresenterActiveSong(song);
-    openPresentationWindow(false);
   };
 
   const handleUpdateSong = async (songId: string, updatedData: { title: string; songNo: number; genre: string; lyrics: string }) => {
@@ -391,7 +390,6 @@ export default function App() {
                         submittedBy: verse.submittedBy || 'system',
                         createdAt: new Date(),
                       });
-                      openPresentationWindow(false);
                     }}
                   />
                 )}

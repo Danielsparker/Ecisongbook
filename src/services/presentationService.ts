@@ -179,8 +179,8 @@ export function openPresentationWindow(isNewWindow: boolean = false): Window | n
   const url = `${window.location.origin}${window.location.pathname}?mode=presentation`;
   const name = isNewWindow ? `eci-presentation-window-${Date.now()}` : 'eci-presentation-window';
   
-  // Omit explicit window feature dimensions so modern browsers open as a full tab
-  const win = window.open(url, name);
+  const features = 'width=1024,height=768,menubar=no,toolbar=no,location=no,status=no,personalbar=no';
+  const win = window.open(url, name, features);
   if (win) {
     win.focus();
   }
