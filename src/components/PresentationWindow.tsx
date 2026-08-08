@@ -298,35 +298,14 @@ export function PresentationWindow() {
 
   return (
     <div
-      className="fixed inset-0 w-screen h-screen flex flex-col justify-between p-8 md:p-12 overflow-hidden select-none transition-colors duration-500"
+      className="fixed inset-0 w-screen h-screen flex flex-col justify-center items-center p-6 sm:p-12 md:p-16 overflow-hidden select-none transition-colors duration-500"
       style={{ 
         backgroundColor: bgColor, 
         color: isBlackScreen ? '#ffffff' : textColor
       }}
     >
-      {/* Header Info (Small metadata to identify active song/chapter subtly) */}
-      <div 
-        className="w-full flex justify-between items-center opacity-70 text-sm tracking-wider font-mono uppercase shrink-0"
-        style={{ fontSize: '14px', color: isBlackScreen ? 'rgba(255,255,255,0.4)' : textColor }}
-      >
-        <div>{state?.subtitle || 'ECI Songbook'}</div>
-        <div className="flex items-center gap-2">
-          {isFirestoreConnected ? (
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              <Radio className="w-3 h-3 animate-pulse text-emerald-400" />
-              Live Sync
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs bg-amber-500/10 text-amber-400 border border-amber-500/20">
-              Local Mode
-            </span>
-          )}
-          <span>ECI Presentation Mode</span>
-        </div>
-      </div>
-
       {/* Main Lyric Slide content container */}
-      <div className={`flex-1 flex ${alignmentClass} w-full py-8 overflow-hidden relative`}>
+      <div className={`w-full flex ${alignmentClass} my-auto overflow-hidden relative`}>
         {/* Blackout Indicator & Toggle */}
         {isBlackScreen ? (
           <div className="w-full flex flex-col items-center justify-center space-y-4 text-center my-auto">
@@ -385,17 +364,6 @@ export function PresentationWindow() {
             )}
           </AnimatePresence>
         )}
-      </div>
-
-      {/* Footer Info / Progress marker */}
-      <div 
-        className="w-full flex justify-between items-center opacity-70 text-xs tracking-wider font-mono shrink-0"
-        style={{ fontSize: '12px', color: isBlackScreen ? 'rgba(255,255,255,0.4)' : textColor }}
-      >
-        <div className="truncate max-w-md font-sans font-semibold">{state?.title || 'ECI Songbook'}</div>
-        <div>
-          {slides.length > 0 ? `${currentSlideIndex + 1} / ${slides.length}` : 'Standby'}
-        </div>
       </div>
     </div>
   );

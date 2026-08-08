@@ -24,6 +24,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { Button } from '@/components/ui/button';
 import { PresentationWindow } from './components/PresentationWindow';
 import { PresenterControl } from './components/PresenterControl';
+import { openPresentationWindow } from './services/presentationService';
 
 export default function App() {
   const urlParams = useMemo(() => new URLSearchParams(window.location.search), []);
@@ -60,6 +61,11 @@ export default function App() {
       return;
     }
     setIsSubmitOpen(true);
+  };
+
+  const handlePresentSong = (song: Song) => {
+    setPresenterActiveSong(song);
+    openPresentationWindow(false);
   };
 
   const handleUpdateSong = async (songId: string, updatedData: { title: string; songNo: number; genre: string; lyrics: string }) => {
@@ -348,7 +354,7 @@ export default function App() {
                           <SongCard 
                             song={song} 
                             onView={setSelectedSong} 
-                            onPresent={setPresenterActiveSong} 
+                            onPresent={handlePresentSong} 
                             onEdit={(s) => setEditingSong(s)}
                             onDelete={(s) => handleDeleteSong(s.id)}
                           />
@@ -377,7 +383,6 @@ export default function App() {
                     user={user} 
                     canvasTheme={isDarkMode ? 'dark' : 'light'} 
                     onPresentVerse={(verse) => {
-                      // Create a dummy song or launch presenter mode for this promise verse
                       setPresenterActiveSong({
                         title: verse.title,
                         songNo: 0,
@@ -386,6 +391,7 @@ export default function App() {
                         submittedBy: verse.submittedBy || 'system',
                         createdAt: new Date(),
                       });
+                      openPresentationWindow(false);
                     }}
                   />
                 )}
@@ -399,7 +405,7 @@ export default function App() {
           song={selectedSong} 
           isOpen={!!selectedSong} 
           onClose={() => setSelectedSong(null)} 
-          onPresent={setPresenterActiveSong}
+          onPresent={handlePresentSong}
           onEdit={(s) => {
             setSelectedSong(null);
             setEditingSong(s);
