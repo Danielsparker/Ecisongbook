@@ -45,10 +45,16 @@
     "SHARE_PROJECT_CONFIGURATION_FILES": "true",
     "git-widget-placeholder": "main",
     "kotlin-language-version-configured": "true",
-    "last_opened_file_path": "C:/Users/Daniel Abraham/OneDrive/Documents/GitHub/Ecisongbook/src",
+    "last_opened_file_path": "C:/Users/Daniel Abraham/OneDrive/Documents/GitHub/Ecisongbook",
     "settings.editor.selected.configurable": "configurable.group.appearance"
   }
 }]]></component>
+  <component name="RecentsManager">
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="C:\Users\Daniel Abraham\OneDrive\Documents\GitHub\Ecisongbook" />
+      <recent name="C:\Users\Daniel Abraham\OneDrive\Documents\GitHub\Ecisongbook\src" />
+    </key>
+  </component>
   <component name="RunManager">
     <configuration default="true" type="JetRunConfigurationType">
       <module name="Ecisongbook" />
