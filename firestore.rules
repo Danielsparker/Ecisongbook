@@ -67,7 +67,7 @@ service cloud.firestore {
     }
 
     function isValidPresentation(data) {
-      return data.keys().hasOnly(['title', 'subtitle', 'slides', 'currentSlideIndex', 'theme', 'blackScreen', 'fontSize', 'fontFamily', 'alignment', 'activeType', 'isExited', 'updatedAt']) &&
+      return data.keys().hasOnly(['title', 'subtitle', 'slides', 'currentSlideIndex', 'theme', 'blackScreen', 'fontSize', 'fontFamily', 'fontWeight', 'alignment', 'activeType', 'promiseVerseUrl', 'promiseVerseReference', 'isExited', 'updatedAt']) &&
              data.title is string && data.title.size() <= 1000 &&
              data.slides is list && data.slides.size() <= 500 &&
              data.currentSlideIndex is int &&
@@ -76,8 +76,11 @@ service cloud.firestore {
              data.fontSize is int &&
              data.fontFamily is string && data.fontFamily.size() <= 100 &&
              data.alignment in ['left', 'center', 'right'] &&
-             data.activeType in ['song', 'bible', 'custom', 'none'] &&
+             data.activeType in ['song', 'bible', 'promiseVerse', 'custom', 'none'] &&
              data.updatedAt is string &&
+             (!('fontWeight' in data) || (data.fontWeight is string && data.fontWeight.size() <= 50)) &&
+             (!('promiseVerseUrl' in data) || (data.promiseVerseUrl is string && data.promiseVerseUrl.size() <= 1000000)) &&
+             (!('promiseVerseReference' in data) || (data.promiseVerseReference is string && data.promiseVerseReference.size() <= 500)) &&
              (!('subtitle' in data) || (data.subtitle is string && data.subtitle.size() <= 500)) &&
              (!('isExited' in data) || data.isExited is bool);
     }
@@ -126,6 +129,11 @@ service cloud.firestore {
     match /presentation/{docId} {
       allow read: if true;
       allow write: if isValidPresentation(request.resource.data);
+    }
+
+    match /promiseVerses/{docId} {
+      allow read: if true;
+      allow write: if true;
     }
   }
 }

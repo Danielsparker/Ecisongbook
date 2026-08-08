@@ -7,7 +7,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { collection, query, orderBy, onSnapshot, addDoc, updateDoc, deleteDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
-import { Music2, Loader2, Plus, BookOpen } from 'lucide-react';
+import { Music2, Loader2, Plus, BookOpen, Sparkles } from 'lucide-react';
 
 import { auth, db, loginWithGoogle, logout, handleFirestoreError, OperationType } from './lib/firebase';
 import { Song } from './types';
@@ -15,6 +15,7 @@ import { Navbar } from './components/Navbar';
 import { SongSearch } from './components/SongSearch';
 import { SongCard } from './components/SongCard';
 import { BibleReader } from './components/BibleReader';
+import { PromiseVerseManager } from './components/PromiseVerseManager';
 import { LyricsModal } from './components/LyricsModal';
 import { SubmitSongDialog } from './components/SubmitSongDialog';
 import { EditSongDialog } from './components/EditSongDialog';
@@ -31,7 +32,7 @@ export default function App() {
   const [user, loading] = useAuthState(auth);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [songs, setSongs] = useState<Song[]>([]);
-  const [activeTab, setActiveTab] = useState<'songs' | 'bible'>('songs');
+  const [activeTab, setActiveTab] = useState<'songs' | 'bible' | 'promiseVerse'>('songs');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSong, setSelectedSong] = useState<Song | null>(null);
   const [presenterActiveSong, setPresenterActiveSong] = useState<Song | null>(null);
@@ -255,7 +256,7 @@ export default function App() {
               <div className="flex p-1 bg-slate-100 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-inner">
                 <button
                   onClick={() => setActiveTab('songs')}
-                  className={`relative flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 ${
+                  className={`relative flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 ${
                     activeTab === 'songs' ? 'text-white' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300'
                   }`}
                 >
@@ -269,9 +270,10 @@ export default function App() {
                   <Music2 className={`relative z-10 h-4 w-4 ${activeTab === 'songs' ? 'animate-pulse' : ''}`} />
                   <span className="relative z-10">Songs</span>
                 </button>
+
                 <button
                   onClick={() => setActiveTab('bible')}
-                  className={`relative flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 ${
+                  className={`relative flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 ${
                     activeTab === 'bible' ? 'text-white' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300'
                   }`}
                 >
@@ -284,6 +286,23 @@ export default function App() {
                   )}
                   <BookOpen className={`relative z-10 h-4 w-4 ${activeTab === 'bible' ? 'animate-pulse' : ''}`} />
                   <span className="relative z-10">Bible</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('promiseVerse')}
+                  className={`relative flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 ${
+                    activeTab === 'promiseVerse' ? 'text-white' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300'
+                  }`}
+                >
+                  {activeTab === 'promiseVerse' && (
+                    <motion.div
+                      layoutId="active-tab"
+                      className="absolute inset-0 bg-amber-500 rounded-xl shadow-lg shadow-amber-500/20"
+                      transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                    />
+                  )}
+                  <Sparkles className={`relative z-10 h-4 w-4 ${activeTab === 'promiseVerse' ? 'animate-pulse text-slate-950' : ''}`} />
+                  <span className="relative z-10">Promise Verse</span>
                 </button>
               </div>
 
@@ -351,8 +370,24 @@ export default function App() {
                       </Button>
                     </div>
                   )
-                ) : (
+                ) : activeTab === 'bible' ? (
                   <BibleReader />
+                ) : (
+                  <PromiseVerseManager 
+                    user={user} 
+                    canvasTheme={isDarkMode ? 'dark' : 'light'} 
+                    onPresentVerse={(verse) => {
+                      // Create a dummy song or launch presenter mode for this promise verse
+                      setPresenterActiveSong({
+                        title: verse.title,
+                        songNo: 0,
+                        genre: verse.month || 'Promise Verse',
+                        lyrics: verse.reference || verse.title,
+                        submittedBy: verse.submittedBy || 'system',
+                        createdAt: new Date(),
+                      });
+                    }}
+                  />
                 )}
               </motion.div>
             </AnimatePresence>

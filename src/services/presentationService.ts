@@ -10,8 +10,11 @@ export interface PresentationState {
   blackScreen: boolean;
   fontSize: number; // in pixels
   fontFamily: string;
+  fontWeight?: string; // '400', '600', '700', '800' or 'normal', 'bold', 'extrabold'
   alignment: 'left' | 'center' | 'right';
-  activeType: 'song' | 'bible' | 'custom' | 'none';
+  activeType: 'song' | 'bible' | 'promiseVerse' | 'custom' | 'none';
+  promiseVerseUrl?: string;
+  promiseVerseReference?: string;
   isExited?: boolean;
 }
 
@@ -23,9 +26,12 @@ export const DEFAULT_STATE: PresentationState = {
   theme: 'dark',
   blackScreen: false,
   fontSize: 48,
-  fontFamily: 'font-sans',
+  fontFamily: 'font-baloo',
+  fontWeight: '700',
   alignment: 'center',
   activeType: 'song',
+  promiseVerseUrl: '',
+  promiseVerseReference: '',
   isExited: false,
 };
 
@@ -85,9 +91,12 @@ export async function publishPresentationStateToFirestore(state: PresentationSta
       theme: state.theme || 'dark',
       blackScreen: !!state.blackScreen,
       fontSize: Math.round(Number(state.fontSize) || 48),
-      fontFamily: state.fontFamily || 'font-sans',
+      fontFamily: state.fontFamily || 'font-baloo',
+      fontWeight: state.fontWeight || '700',
       alignment: state.alignment || 'center',
       activeType: state.activeType || 'song',
+      promiseVerseUrl: state.promiseVerseUrl || '',
+      promiseVerseReference: state.promiseVerseReference || '',
       isExited: !!state.isExited,
       updatedAt: new Date().toISOString()
     });

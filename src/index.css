@@ -19,6 +19,18 @@
   }
 }
 
+.font-baloo {
+  font-family: 'Baloo Thambi 2', 'Baloo Thambi', system-ui, sans-serif;
+}
+
+.font-anek {
+  font-family: 'Anek Tamil', system-ui, sans-serif;
+}
+
+.font-tiro {
+  font-family: 'Tiro Tamil', Georgia, serif;
+}
+
 .lyrics-text {
   @apply font-serif leading-relaxed whitespace-pre-wrap;
 }

@@ -1,4 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 import { 
   Play, 
   Square, 
@@ -26,7 +28,8 @@ import {
   QrCode,
   Layers,
   Plus,
-  Minus
+  Minus,
+  Sparkles
 } from 'lucide-react';
 import { Song, BibleVerse } from '../types';
 import { 
@@ -53,7 +56,17 @@ interface PresenterControlProps {
 
 export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode }: PresenterControlProps) {
   const [activeSong, setActiveSong] = useState<Song | null>(initialActiveSong);
-  const [activeTab, setActiveTab] = useState<'songs' | 'bible'>('songs');
+  const [activeTab, setActiveTab] = useState<'songs' | 'bible' | 'promiseVerse'>('songs');
+  const [promiseVerses, setPromiseVerses] = useState<any[]>([]);
+
+  // Fetch promise verses for quick presentation in left panel
+  useEffect(() => {
+    const q = query(collection(db, 'promiseVerses'), orderBy('createdAt', 'desc'));
+    const unsub = onSnapshot(q, (snap) => {
+      setPromiseVerses(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, () => {});
+    return () => unsub();
+  }, []);
   const [searchQuery, setSearchQuery] = useState('');
   
   // Local presentation state mimicking the remote projector state
@@ -560,14 +573,18 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
           </div>
 
           <Tabs defaultValue="songs" className="w-full flex-1 flex flex-col overflow-hidden" onValueChange={(v) => setActiveTab(v as any)}>
-            <TabsList className="bg-slate-900 border border-slate-800 p-1 rounded-xl grid grid-cols-2 mb-3">
+            <TabsList className="bg-slate-900 border border-slate-800 p-1 rounded-xl grid grid-cols-3 mb-3">
               <TabsTrigger value="songs" className="rounded-lg text-xs font-semibold py-1.5 data-[state=active]:bg-brand-600 data-[state=active]:text-white">
                 <Music className="h-3 w-3 mr-1" />
-                Song Book
+                Songs
               </TabsTrigger>
               <TabsTrigger value="bible" className="rounded-lg text-xs font-semibold py-1.5 data-[state=active]:bg-brand-600 data-[state=active]:text-white">
                 <BookOpen className="h-3 w-3 mr-1" />
-                Quick Bible
+                Bible
+              </TabsTrigger>
+              <TabsTrigger value="promiseVerse" className="rounded-lg text-xs font-semibold py-1.5 data-[state=active]:bg-amber-600 data-[state=active]:text-white">
+                <Sparkles className="h-3 w-3 mr-1" />
+                Promise
               </TabsTrigger>
             </TabsList>
 
@@ -656,6 +673,53 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
               <div className="text-[11px] text-slate-500 italic p-1">
                 Tip: You can also project live scriptures directly from the main "Bible" tab reader screen!
               </div>
+            </TabsContent>
+
+            <TabsContent value="promiseVerse" className="flex-1 overflow-hidden m-0">
+              <ScrollArea className="h-full">
+                <div className="space-y-2 pr-2">
+                  {promiseVerses.map((pv) => (
+                    <div
+                      key={pv.id}
+                      className="bg-slate-900 border border-slate-800 rounded-xl p-2.5 space-y-2 hover:border-amber-500/40 transition-colors"
+                    >
+                      <div className="relative aspect-video rounded-lg overflow-hidden bg-black">
+                        <img src={pv.imageUrl} alt={pv.title} className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent p-2 flex flex-col justify-end">
+                          <div className="text-xs font-bold text-white truncate">{pv.title}</div>
+                          <div className="text-[10px] text-amber-300 font-medium truncate">{pv.reference || pv.month}</div>
+                        </div>
+                      </div>
+                      <Button
+                        onClick={() => {
+                          const updated = {
+                            ...presState,
+                            title: pv.title,
+                            subtitle: pv.reference || `Monthly Promise Verse (${pv.month || ''})`,
+                            slides: [],
+                            currentSlideIndex: 0,
+                            activeType: 'promiseVerse' as const,
+                            promiseVerseUrl: pv.imageUrl,
+                            promiseVerseReference: pv.reference,
+                            blackScreen: false,
+                            isExited: false,
+                          };
+                          setPresState(updated);
+                          publishPresentationState(updated);
+                        }}
+                        className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-lg text-xs h-7 gap-1 cursor-pointer"
+                      >
+                        <Play className="h-3 w-3 fill-current" /> Project Wallpaper Now
+                      </Button>
+                    </div>
+                  ))}
+                  {promiseVerses.length === 0 && (
+                    <div className="text-center py-8 text-xs text-slate-500">
+                      No promise verse wallpapers uploaded yet. Visit the Promise Verse section to add one!
+                    </div>
+                  )}
+                </div>
+              </ScrollArea>
             </TabsContent>
           </Tabs>
         </aside>
@@ -837,27 +901,62 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
             </CardHeader>
             <CardContent className="space-y-4">
               
-              {/* Font Family */}
+              {/* Font Family & Tamil Fonts */}
               <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-2">Font Style</label>
-                <div className="grid grid-cols-3 gap-1 bg-slate-900 border border-slate-800 p-1 rounded-xl text-xs">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-2">Typography & Tamil Fonts</label>
+                <div className="grid grid-cols-2 gap-1.5 bg-slate-900 border border-slate-800 p-1.5 rounded-xl text-xs">
+                  <button 
+                    onClick={() => handleFontFamilyChange('font-baloo')}
+                    className={`py-2 px-2.5 rounded-lg font-baloo text-left transition-all ${presState.fontFamily === 'font-baloo' ? 'bg-brand-600 text-white font-bold shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
+                  >
+                    <div className="text-[11px] font-bold">Baloo Thambi</div>
+                    <div className="text-[9px] opacity-75 truncate">பாலூ தம்பி</div>
+                  </button>
+                  <button 
+                    onClick={() => handleFontFamilyChange('font-anek')}
+                    className={`py-2 px-2.5 rounded-lg font-anek text-left transition-all ${presState.fontFamily === 'font-anek' ? 'bg-brand-600 text-white font-bold shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
+                  >
+                    <div className="text-[11px] font-bold">Anek Tamil</div>
+                    <div className="text-[9px] opacity-75 truncate">அனேக் தமிழ்</div>
+                  </button>
+                  <button 
+                    onClick={() => handleFontFamilyChange('font-tiro')}
+                    className={`py-2 px-2.5 rounded-lg font-tiro text-left transition-all ${presState.fontFamily === 'font-tiro' ? 'bg-brand-600 text-white font-bold shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
+                  >
+                    <div className="text-[11px] font-bold">Tiro Tamil</div>
+                    <div className="text-[9px] opacity-75 truncate">திரோ தமிழ்</div>
+                  </button>
                   <button 
                     onClick={() => handleFontFamilyChange('font-sans')}
-                    className={`py-1.5 rounded-lg font-sans font-semibold text-center ${presState.fontFamily === 'font-sans' ? 'bg-brand-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
+                    className={`py-2 px-2.5 rounded-lg font-sans text-left transition-all ${presState.fontFamily === 'font-sans' ? 'bg-brand-600 text-white font-bold shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
                   >
-                    Sans
+                    <div className="text-[11px] font-bold">Standard Sans</div>
+                    <div className="text-[9px] opacity-75">Clean System</div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Font Weight */}
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-2">Font Weight (Boldness)</label>
+                <div className="grid grid-cols-3 gap-1 bg-slate-900 border border-slate-800 p-1 rounded-xl text-xs">
+                  <button 
+                    onClick={() => setPresState(prev => ({ ...prev, fontWeight: '800' }))}
+                    className={`py-1.5 rounded-lg font-extrabold text-center ${presState.fontWeight === '800' ? 'bg-brand-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
+                  >
+                    Extra Bold
                   </button>
                   <button 
-                    onClick={() => handleFontFamilyChange('font-serif')}
-                    className={`py-1.5 rounded-lg font-serif font-semibold text-center ${presState.fontFamily === 'font-serif' ? 'bg-brand-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
+                    onClick={() => setPresState(prev => ({ ...prev, fontWeight: '700' }))}
+                    className={`py-1.5 rounded-lg font-bold text-center ${presState.fontWeight === '700' || !presState.fontWeight ? 'bg-brand-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
                   >
-                    Serif
+                    Bold
                   </button>
                   <button 
-                    onClick={() => handleFontFamilyChange('font-mono')}
-                    className={`py-1.5 rounded-lg font-mono text-center text-[10px] ${presState.fontFamily === 'font-mono' ? 'bg-brand-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
+                    onClick={() => setPresState(prev => ({ ...prev, fontWeight: '400' }))}
+                    className={`py-1.5 rounded-lg font-normal text-center ${presState.fontWeight === '400' ? 'bg-brand-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
                   >
-                    Mono
+                    Regular
                   </button>
                 </div>
               </div>

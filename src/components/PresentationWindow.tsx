@@ -216,10 +216,24 @@ export function PresentationWindow() {
   }[state?.alignment || 'center'] || 'text-center justify-center items-center';
 
   const fontClass = {
+    'font-baloo': 'font-baloo',
+    'font-anek': 'font-anek',
+    'font-tiro': 'font-tiro',
     'font-sans': 'font-sans',
-    'font-serif': 'font-serif font-medium',
+    'font-serif': 'font-serif',
     'font-mono': 'font-mono',
-  }[state?.fontFamily || 'font-sans'] || 'font-sans';
+  }[state?.fontFamily || 'font-baloo'] || 'font-baloo';
+
+  const fontWeightVal = {
+    '400': 400,
+    'normal': 400,
+    '600': 600,
+    'semibold': 600,
+    '700': 700,
+    'bold': 700,
+    '800': 800,
+    'extrabold': 800,
+  }[state?.fontWeight || '700'] || 700;
 
   // Dynamic Backdrops and Text Colors with robust Inline Overrides
   const isDarkCanvas = state?.theme === 'dark';
@@ -234,6 +248,47 @@ export function PresentationWindow() {
     : (isDarkCanvas ? '#ffffff' : '#0f172a'); // text-slate-900 is #0f172a
 
   const fontSizeVal = typeof state?.fontSize === 'number' && !isNaN(state.fontSize) ? state.fontSize : (Number(state?.fontSize) || 48);
+
+  // Promise verse wallpaper full-screen presentation mode
+  const isPromiseVerse = state?.activeType === 'promiseVerse' && !!state?.promiseVerseUrl;
+
+  if (isPromiseVerse) {
+    return (
+      <div 
+        className="fixed inset-0 w-screen h-screen flex items-center justify-center overflow-hidden select-none bg-black transition-colors duration-500"
+        style={{ backgroundColor: isBlackScreen ? '#000000' : (isDarkCanvas ? '#020617' : '#000000') }}
+      >
+        {isBlackScreen ? (
+          <div className="w-full flex flex-col items-center justify-center space-y-4 text-center my-auto">
+            <div className="w-16 h-16 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center text-amber-400 shadow-xl">
+              <EyeOff className="w-8 h-8" />
+            </div>
+            <div className="space-y-1">
+              <p className="text-xl font-semibold text-slate-200">Blackout Active</p>
+              <p className="text-sm text-slate-400">Promise Verse Display Hidden</p>
+            </div>
+          </div>
+        ) : (
+          <AnimatePresence mode="wait">
+            <motion.div 
+              key={state.promiseVerseUrl}
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.4, ease: 'easeInOut' }}
+              className="w-full h-full flex items-center justify-center relative p-0"
+            >
+              <img 
+                src={state.promiseVerseUrl} 
+                alt={state.title || 'Monthly Promise Verse'} 
+                className="w-full h-full object-contain"
+              />
+            </motion.div>
+          </AnimatePresence>
+        )}
+      </div>
+    );
+  }
 
   // Standby mode when no slides are loaded yet
   const isStandby = slides.length === 0;
@@ -315,7 +370,12 @@ export function PresentationWindow() {
                 exit={{ opacity: 0, y: -15 }}
                 transition={{ duration: 0.25, ease: 'easeInOut' }}
                 className={`max-w-7xl w-full whitespace-pre-wrap break-words ${fontClass}`}
-                style={{ fontSize: `${fontSizeVal}px`, lineHeight: 1.2, color: textColor }}
+                style={{ 
+                  fontSize: `${fontSizeVal}px`, 
+                  fontWeight: fontWeightVal, 
+                  lineHeight: 1.3, 
+                  color: textColor 
+                }}
               >
                 {activeSlideContent}
               </motion.div>

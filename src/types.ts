@@ -25,3 +25,13 @@ export interface UserProfile {
   photoURL?: string;
   role: 'user' | 'admin';
 }
+
+export interface PromiseVerse {
+  id?: string;
+  title: string;           // e.g. "August 2026 Promise Verse"
+  reference: string;       // e.g. "Isaiah 40:31"
+  imageUrl: string;        // Data URL or HTTP URL
+  month?: string;          // e.g. "August 2026"
+  createdAt?: any;         // Firestore Timestamp
+  submittedBy?: string;
+}
