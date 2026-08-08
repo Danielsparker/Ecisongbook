@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Tv, Eye, EyeOff, Radio } from 'lucide-react';
+import { Tv, Eye, EyeOff, Radio, Maximize, Minimize } from 'lucide-react';
 import { getPresentationState, PresentationState, DEFAULT_STATE, publishPresentationState } from '../services/presentationService';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
@@ -8,6 +8,56 @@ import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 export function PresentationWindow() {
   const [state, setState] = useState<PresentationState>(DEFAULT_STATE);
   const [isFirestoreConnected, setIsFirestoreConnected] = useState<boolean>(true);
+  const [showHeaders, setShowHeaders] = useState<boolean>(true);
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Auto-hide headers and overlays after 3 seconds of inactivity
+  useEffect(() => {
+    const resetTimer = () => {
+      setShowHeaders(true);
+      if (hideTimerRef.current) {
+        clearTimeout(hideTimerRef.current);
+      }
+      hideTimerRef.current = setTimeout(() => {
+        setShowHeaders(false);
+      }, 3000);
+    };
+
+    // Initial 3 second timer
+    hideTimerRef.current = setTimeout(() => {
+      setShowHeaders(false);
+    }, 3000);
+
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+
+    window.addEventListener('mousemove', resetTimer);
+    window.addEventListener('touchstart', resetTimer);
+    window.addEventListener('keydown', resetTimer);
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+
+    return () => {
+      if (hideTimerRef.current) {
+        clearTimeout(hideTimerRef.current);
+      }
+      window.removeEventListener('mousemove', resetTimer);
+      window.removeEventListener('touchstart', resetTimer);
+      window.removeEventListener('keydown', resetTimer);
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    };
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {});
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => {});
+      }
+    }
+  };
 
   useEffect(() => {
     // Load initial state
@@ -261,6 +311,31 @@ export function PresentationWindow() {
         className="fixed inset-0 w-screen h-screen flex items-center justify-center overflow-hidden select-none bg-black transition-colors duration-500"
         style={{ backgroundColor: isBlackScreen ? '#000000' : (isDarkCanvas ? '#020617' : '#000000') }}
       >
+        {/* Auto-hiding Top Header Bar (Disappears after 3 seconds) */}
+        <div 
+          className={`fixed top-0 left-0 right-0 z-50 px-6 py-4 flex justify-between items-center transition-opacity duration-500 bg-gradient-to-b from-black/80 via-black/40 to-transparent text-white text-xs font-mono uppercase tracking-wider ${
+            showHeaders ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+          }`}
+        >
+          <div className="font-semibold">{state?.subtitle || 'ECI Promise Verse'}</div>
+          <div className="flex items-center gap-3">
+            {isFirestoreConnected && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[11px] font-medium">
+                <Radio className="w-3 h-3 animate-pulse" />
+                Live Sync
+              </span>
+            )}
+            <button
+              onClick={toggleFullscreen}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white border border-white/20 text-xs transition-colors cursor-pointer"
+              title="Toggle Fullscreen"
+            >
+              {isFullscreen ? <Minimize className="w-3.5 h-3.5" /> : <Maximize className="w-3.5 h-3.5" />}
+              <span>{isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}</span>
+            </button>
+          </div>
+        </div>
+
         {isBlackScreen ? (
           <div className="w-full flex flex-col items-center justify-center space-y-4 text-center my-auto">
             <div className="w-16 h-16 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center text-amber-400 shadow-xl">
@@ -289,6 +364,16 @@ export function PresentationWindow() {
             </motion.div>
           </AnimatePresence>
         )}
+
+        {/* Auto-hiding Bottom Footer Bar */}
+        <div 
+          className={`fixed bottom-0 left-0 right-0 z-50 px-6 py-4 flex justify-between items-center transition-opacity duration-500 bg-gradient-to-t from-black/80 via-black/40 to-transparent text-white/80 text-xs font-mono ${
+            showHeaders ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+          }`}
+        >
+          <div className="truncate max-w-md font-sans font-semibold text-white/90">{state?.title || 'Promise Verse'}</div>
+          <div>Full Screen Wallpaper</div>
+        </div>
       </div>
     );
   }
@@ -304,6 +389,35 @@ export function PresentationWindow() {
         color: isBlackScreen ? '#ffffff' : textColor
       }}
     >
+      {/* Auto-hiding Top Header Bar (Fades out after 3 seconds of inactivity) */}
+      <div 
+        className={`fixed top-0 left-0 right-0 z-50 px-6 py-4 flex justify-between items-center transition-opacity duration-500 bg-gradient-to-b from-black/60 via-black/20 to-transparent text-white text-xs font-mono uppercase tracking-wider ${
+          showHeaders ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+        }`}
+      >
+        <div className="font-semibold text-white/90 drop-shadow-sm">{state?.subtitle || 'ECI Songbook'}</div>
+        <div className="flex items-center gap-3">
+          {isFirestoreConnected ? (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[11px] font-medium backdrop-blur-sm">
+              <Radio className="w-3 h-3 animate-pulse text-emerald-400" />
+              Live Sync
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[11px] font-medium backdrop-blur-sm">
+              Local Sync
+            </span>
+          )}
+          <button
+            onClick={toggleFullscreen}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white border border-white/20 text-xs transition-colors backdrop-blur-sm cursor-pointer"
+            title="Toggle Fullscreen mode"
+          >
+            {isFullscreen ? <Minimize className="w-3.5 h-3.5" /> : <Maximize className="w-3.5 h-3.5" />}
+            <span>{isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}</span>
+          </button>
+        </div>
+      </div>
+
       {/* Main Lyric Slide content container */}
       <div className={`w-full flex ${alignmentClass} my-auto overflow-hidden relative`}>
         {/* Blackout Indicator & Toggle */}
@@ -364,6 +478,18 @@ export function PresentationWindow() {
             )}
           </AnimatePresence>
         )}
+      </div>
+
+      {/* Auto-hiding Bottom Footer Bar (Fades out after 3 seconds of inactivity) */}
+      <div 
+        className={`fixed bottom-0 left-0 right-0 z-50 px-6 py-4 flex justify-between items-center transition-opacity duration-500 bg-gradient-to-t from-black/60 via-black/20 to-transparent text-white/90 text-xs font-mono ${
+          showHeaders ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+        }`}
+      >
+        <div className="truncate max-w-md font-sans font-semibold drop-shadow-sm">{state?.title || 'ECI Songbook'}</div>
+        <div>
+          {slides.length > 0 ? `${currentSlideIndex + 1} / ${slides.length}` : 'Standby'}
+        </div>
       </div>
     </div>
   );

@@ -58,6 +58,7 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
   const [activeSong, setActiveSong] = useState<Song | null>(initialActiveSong);
   const [activeTab, setActiveTab] = useState<'songs' | 'bible' | 'promiseVerse'>('songs');
   const [promiseVerses, setPromiseVerses] = useState<any[]>([]);
+  const [showPromiseVerseMenu, setShowPromiseVerseMenu] = useState(false);
 
   // Fetch promise verses for quick presentation in left panel
   useEffect(() => {
@@ -68,6 +69,23 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
     return () => unsub();
   }, []);
   const [searchQuery, setSearchQuery] = useState('');
+
+  const handlePresentPromiseVerse = (pv: any) => {
+    const updated: PresentationState = {
+      ...presState,
+      title: pv.title || pv.reference || 'Promise Verse',
+      subtitle: pv.reference || `Monthly Promise Verse (${pv.month || ''})`,
+      slides: [pv.reference || pv.title || 'Promise Verse'],
+      currentSlideIndex: 0,
+      activeType: 'promiseVerse',
+      promiseVerseUrl: pv.imageUrl,
+      promiseVerseReference: pv.reference || '',
+      blackScreen: false,
+      isExited: false,
+    };
+    setPresState(updated);
+    publishPresentationState(updated);
+  };
   
   // Local presentation state mimicking the remote projector state
   const [presState, setPresState] = useState<PresentationState>(() => {
@@ -325,6 +343,121 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
         </div>
         
         <div className="flex items-center gap-2.5">
+          {/* Promise Verse Option Button (In front of Blackout Screen) */}
+          <div 
+            className="relative"
+            onMouseEnter={() => setShowPromiseVerseMenu(true)}
+            onMouseLeave={() => setShowPromiseVerseMenu(false)}
+          >
+            <Button 
+              onClick={() => setShowPromiseVerseMenu(!showPromiseVerseMenu)}
+              variant="ghost"
+              size="sm"
+              className={`gap-2 h-9 rounded-xl font-semibold transition-all border ${
+                presState.activeType === 'promiseVerse'
+                  ? '!bg-amber-600 hover:!bg-amber-500 !text-white border-amber-400 shadow-lg shadow-amber-900/30'
+                  : '!bg-slate-800 hover:!bg-slate-700 !text-slate-100 border-slate-700 hover:border-slate-600'
+              }`}
+            >
+              <Sparkles className="h-4 w-4 text-amber-400" />
+              Promise Verse
+              {promiseVerses.length > 0 && (
+                <span className="ml-0.5 px-1.5 py-0.2 text-[10px] bg-slate-900/80 text-amber-300 rounded-full border border-amber-500/30 font-mono">
+                  {promiseVerses.length}
+                </span>
+              )}
+            </Button>
+
+            {showPromiseVerseMenu && (
+              <div className="absolute left-0 sm:left-auto sm:right-0 top-full mt-2 w-80 sm:w-96 bg-slate-900/95 border border-slate-700/80 rounded-2xl shadow-2xl backdrop-blur-md p-3.5 z-50 animate-in fade-in zoom-in-95 duration-150">
+                <div className="flex justify-between items-center pb-2.5 mb-2.5 border-b border-slate-800">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-amber-400" />
+                    <span className="text-xs font-bold text-white uppercase tracking-wider">Promise Verse Wallpapers</span>
+                  </div>
+                  <Badge variant="outline" className="text-[10px] border-amber-500/30 text-amber-400 bg-amber-950/20">
+                    {promiseVerses.length} Available
+                  </Badge>
+                </div>
+
+                {promiseVerses.length > 0 ? (
+                  <div className="grid grid-cols-1 gap-2.5 max-h-80 overflow-y-auto pr-1 custom-scrollbar">
+                    {promiseVerses.map((verse) => {
+                      const isActive = presState.activeType === 'promiseVerse' && presState.promiseVerseUrl === verse.imageUrl;
+                      return (
+                        <div
+                          key={verse.id || verse.imageUrl}
+                          onClick={() => {
+                            handlePresentPromiseVerse(verse);
+                            setShowPromiseVerseMenu(false);
+                          }}
+                          className={`group relative flex items-center gap-3 p-2 rounded-xl border transition-all cursor-pointer ${
+                            isActive
+                              ? 'bg-amber-950/40 border-amber-500/80 shadow-md shadow-amber-950/50 ring-1 ring-amber-500/50'
+                              : 'bg-slate-950/60 hover:bg-slate-800/80 border-slate-800 hover:border-amber-500/40'
+                          }`}
+                        >
+                          <div className="relative w-24 h-16 rounded-lg overflow-hidden bg-slate-900 border border-slate-800 shrink-0">
+                            <img
+                              src={verse.imageUrl}
+                              alt={verse.title || 'Promise Verse'}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                            />
+                            {isActive ? (
+                              <div className="absolute inset-0 bg-amber-950/70 backdrop-blur-[1px] flex items-center justify-center">
+                                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500 text-slate-950 uppercase tracking-wider">
+                                  LIVE
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                <Play className="w-5 h-5 text-amber-400 fill-amber-400/30" />
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="flex-1 min-w-0 space-y-0.5">
+                            <h5 className="text-xs font-bold text-slate-100 truncate group-hover:text-amber-300 transition-colors">
+                              {verse.title || 'Promise Verse'}
+                            </h5>
+                            {verse.reference && (
+                              <p className="text-[11px] text-amber-400/90 font-medium truncate">
+                                {verse.reference}
+                              </p>
+                            )}
+                            {verse.month && (
+                              <p className="text-[10px] text-slate-400 truncate">
+                                {verse.month}
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="shrink-0">
+                            <Button size="sm" className={`h-7 px-2.5 rounded-lg text-xs font-bold ${
+                              isActive 
+                                ? 'bg-amber-500 text-slate-950 hover:bg-amber-400' 
+                                : 'bg-slate-800 text-slate-200 hover:bg-amber-500 hover:text-slate-950'
+                            }`}>
+                              {isActive ? 'Live' : 'Present'}
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-6 px-3 bg-slate-950/40 rounded-xl border border-slate-800/80 space-y-2">
+                    <Sparkles className="h-8 w-8 text-amber-400/60 mx-auto animate-pulse" />
+                    <p className="text-xs text-slate-200 font-semibold">No Promise Verses Uploaded Yet</p>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      Upload your monthly promise verse wallpaper images in the <span className="text-amber-400 font-semibold">Promise Verse</span> manager tab to select and present them here in full screen.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           <Button 
             onClick={toggleBlackout} 
             variant="ghost"
@@ -761,17 +894,27 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
             </div>
             
             <div 
-              className={`flex-1 flex ${alignmentClass} py-4 px-8 ${presState.blackScreen ? 'opacity-0' : 'opacity-100'}`} 
+              className={`flex-1 flex ${alignmentClass} py-2 px-4 ${presState.blackScreen ? 'opacity-0' : 'opacity-100'}`} 
               style={{ transition: 'opacity 0.2s' }}
             >
-              <p 
-                className={`${fontClass} italic max-w-xl break-words whitespace-pre-wrap leading-snug transition-all duration-200 ${
-                  isLightCanvas ? 'text-slate-900 font-semibold' : 'text-white'
-                }`}
-                style={{ fontSize: `${Math.max(14, Math.min(42, Math.round((presState.fontSize || 48) * 0.45)))}px` }}
-              >
-                {presState.slides[presState.currentSlideIndex] || '--- Screen Blank ---'}
-              </p>
+              {presState.activeType === 'promiseVerse' && presState.promiseVerseUrl ? (
+                <div className="w-full h-full flex items-center justify-center relative overflow-hidden">
+                  <img 
+                    src={presState.promiseVerseUrl} 
+                    alt={presState.title || 'Promise Verse Wallpaper'} 
+                    className="max-h-full max-w-full object-contain rounded-lg shadow-lg border border-slate-700/50" 
+                  />
+                </div>
+              ) : (
+                <p 
+                  className={`${fontClass} italic max-w-xl break-words whitespace-pre-wrap leading-snug transition-all duration-200 ${
+                    isLightCanvas ? 'text-slate-900 font-semibold' : 'text-white'
+                  }`}
+                  style={{ fontSize: `${Math.max(14, Math.min(42, Math.round((presState.fontSize || 48) * 0.45)))}px` }}
+                >
+                  {presState.slides[presState.currentSlideIndex] || '--- Screen Blank ---'}
+                </p>
+              )}
             </div>
 
             {presState.blackScreen && (
