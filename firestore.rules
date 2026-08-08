@@ -68,17 +68,17 @@ service cloud.firestore {
 
     function isValidPresentation(data) {
       return data.keys().hasOnly(['title', 'subtitle', 'slides', 'currentSlideIndex', 'theme', 'blackScreen', 'fontSize', 'fontFamily', 'alignment', 'activeType', 'isExited', 'updatedAt']) &&
-             data.title is string &&
-             data.slides is list &&
+             data.title is string && data.title.size() <= 1000 &&
+             data.slides is list && data.slides.size() <= 500 &&
              data.currentSlideIndex is int &&
              data.theme in ['dark', 'light'] &&
              data.blackScreen is bool &&
              data.fontSize is int &&
-             data.fontFamily is string &&
+             data.fontFamily is string && data.fontFamily.size() <= 100 &&
              data.alignment in ['left', 'center', 'right'] &&
              data.activeType in ['song', 'bible', 'custom', 'none'] &&
              data.updatedAt is string &&
-             (!('subtitle' in data) || data.subtitle is string) &&
+             (!('subtitle' in data) || (data.subtitle is string && data.subtitle.size() <= 500)) &&
              (!('isExited' in data) || data.isExited is bool);
     }
 
@@ -125,7 +125,7 @@ service cloud.firestore {
 
     match /presentation/{docId} {
       allow read: if true;
-      allow write: if isAuthenticated() && (isAdmin() || isContributor()) && isValidPresentation(request.resource.data);
+      allow write: if isValidPresentation(request.resource.data);
     }
   }
 }

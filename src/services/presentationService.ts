@@ -1,5 +1,5 @@
 import { doc, setDoc } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 
 export interface PresentationState {
   title: string;
@@ -93,6 +93,11 @@ export async function publishPresentationStateToFirestore(state: PresentationSta
     });
   } catch (error) {
     console.warn('Failed to publish presentation state to Firestore:', error);
+    try {
+      handleFirestoreError(error, OperationType.WRITE, 'presentation/active');
+    } catch (e) {
+      // Swallowed after logging structured error to preserve local UI presentation flow
+    }
   }
 }
 
