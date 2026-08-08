@@ -119,10 +119,13 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
   }[presState.alignment || 'center'] || 'text-center justify-center items-center';
 
   const fontClass = {
+    'font-baloo': 'font-baloo',
+    'font-anek': 'font-anek',
+    'font-tiro': 'font-tiro',
     'font-sans': 'font-sans',
     'font-serif': 'font-serif font-medium',
     'font-mono': 'font-mono',
-  }[presState.fontFamily || 'font-sans'] || 'font-sans';
+  }[presState.fontFamily || 'font-baloo'] || 'font-baloo';
 
   const projectorUrl = useMemo(() => {
     if (typeof window === 'undefined') return '';
@@ -137,6 +140,9 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
   // Load active song slides
   useEffect(() => {
     if (activeSong) {
+      if (activeSong.songNo === 0 && presState.activeType === 'promiseVerse') {
+        return;
+      }
       const slides = splitLyricsToSlides(activeSong.lyrics);
       setPresState(prev => ({
         ...prev,

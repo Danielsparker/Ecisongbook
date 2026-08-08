@@ -53,9 +53,12 @@ export function PresentationWindow() {
               theme: data.theme || 'dark',
               blackScreen: !!data.blackScreen,
               fontSize: data.fontSize || 48,
-              fontFamily: data.fontFamily || 'font-sans',
+              fontFamily: data.fontFamily || 'font-baloo',
+              fontWeight: data.fontWeight || '700',
               alignment: data.alignment || 'center',
               activeType: data.activeType || 'song',
+              promiseVerseUrl: data.promiseVerseUrl || '',
+              promiseVerseReference: data.promiseVerseReference || '',
               isExited: !!data.isExited
             };
             setState(nextState);
