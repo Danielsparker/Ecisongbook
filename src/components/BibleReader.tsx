@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronLeft, ChevronRight, Book, Layers, ArrowLeft, RefreshCw, AlertCircle, Maximize2, Minimize2, Tv } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { BibleVerse } from '../types';
 import { Button } from '@/components/ui/button';
 import { publishPresentationState, openPresentationWindow, getPresentationState } from '../services/presentationService';
@@ -38,13 +38,7 @@ export function BibleReader() {
   }, []);
 
   const fetchBooks = async () => {
-    // Check if placeholder values are being used
-    const isConfigured = import.meta.env.VITE_SUPABASE_URL && 
-                         !import.meta.env.VITE_SUPABASE_URL.includes('placeholder') &&
-                         import.meta.env.VITE_SUPABASE_ANON_KEY &&
-                         import.meta.env.VITE_SUPABASE_ANON_KEY !== 'placeholder';
-
-    if (!isConfigured) {
+    if (!isSupabaseConfigured) {
       setError("Supabase configuration is missing. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your settings.");
       return;
     }

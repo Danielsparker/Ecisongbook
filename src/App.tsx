@@ -323,10 +323,10 @@ export default function App() {
           <section>
             <div className="mb-8 flex items-center justify-between">
               <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
-                {searchQuery ? 'Search Results' : (activeTab === 'songs' ? 'Recent Songs' : 'Bible Database')}
+                {searchQuery ? 'Search Results' : (activeTab === 'songs' ? 'Recent Songs' : activeTab === 'bible' ? 'Bible Database' : 'Promise Verse Wallpapers')}
               </h2>
               <span className="text-sm text-slate-500">
-                {activeTab === 'songs' ? `${filteredSongs.length} songs` : 'Supabase Live Integration'} found
+                {activeTab === 'songs' ? `${filteredSongs.length} songs` : (activeTab === 'bible' ? 'Supabase Connected' : 'Monthly Wallpapers')}
               </span>
             </div>
 

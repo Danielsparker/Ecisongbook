@@ -1,15 +1,20 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const DEFAULT_SUPABASE_URL = 'https://axxwahecopzsbwgqtqgp.supabase.co';
+const DEFAULT_SUPABASE_ANON_KEY = 'sb_publishable_e438qh0Wsg-2gigGy_UPqQ_ELc_nj3C';
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn(
-    'Supabase environment variables are missing. Bible database access will not work until set.'
-  );
-}
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_ANON_KEY;
+
+export const isSupabaseConfigured = Boolean(
+  supabaseUrl &&
+  !supabaseUrl.includes('placeholder') &&
+  supabaseAnonKey &&
+  supabaseAnonKey !== 'placeholder'
+);
 
 export const supabase = createClient(
-  supabaseUrl || 'https://placeholder.supabase.co',
-  supabaseAnonKey || 'placeholder'
+  supabaseUrl || DEFAULT_SUPABASE_URL,
+  supabaseAnonKey || DEFAULT_SUPABASE_ANON_KEY
 );
+
