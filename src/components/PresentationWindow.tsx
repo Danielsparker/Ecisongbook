@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Tv, Eye, EyeOff, Radio, Maximize, Minimize } from 'lucide-react';
 import { getPresentationState, PresentationState, DEFAULT_STATE, publishPresentationState } from '../services/presentationService';
+import { getBackgroundTheme } from '../data/backgroundThemes';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 
@@ -74,11 +75,6 @@ export function PresentationWindow() {
             try {
               localStorage.setItem('eci_presentation_state', JSON.stringify(event.data));
             } catch (e) {}
-
-            // If presenter exited, attempt to close popup window instantly
-            if (event.data.isExited || (event.data.activeType === 'none' && (!event.data.slides || event.data.slides.length === 0))) {
-              try { window.close(); } catch (e) {}
-            }
           }
         };
       }
@@ -115,11 +111,6 @@ export function PresentationWindow() {
             try {
               localStorage.setItem('eci_presentation_state', JSON.stringify(nextState));
             } catch (e) {}
-
-            // If presenter exited, attempt to close popup window instantly
-            if (nextState.isExited || (nextState.activeType === 'none' && nextState.slides.length === 0 && !nextState.title)) {
-              try { window.close(); } catch (e) {}
-            }
           }
         }
       }, (error) => {
@@ -142,9 +133,6 @@ export function PresentationWindow() {
           const parsed = JSON.parse(saved);
           if (parsed) {
             setState(parsed);
-            if (parsed.isExited || (parsed.activeType === 'none' && (!parsed.slides || parsed.slides.length === 0) && !parsed.title)) {
-              try { window.close(); } catch (e) {}
-            }
           }
         } catch (e) {}
       }
@@ -289,16 +277,21 @@ export function PresentationWindow() {
   }[state?.fontWeight || '700'] || 700;
 
   // Dynamic Backdrops and Text Colors with robust Inline Overrides
-  const isDarkCanvas = state?.theme === 'dark';
   const isBlackScreen = !!state?.blackScreen;
+  const bgTheme = getBackgroundTheme(state?.backgroundThemeId);
 
-  const bgColor = isBlackScreen 
-    ? '#000000' 
-    : (isDarkCanvas ? '#020617' : '#ffffff'); // bg-slate-950 is #020617, bg-white is #ffffff
-    
+  // Background and Text color evaluation based on selected theme
+  const containerBgStyle = isBlackScreen 
+    ? { backgroundColor: '#000000' }
+    : { background: bgTheme.backgroundStyle };
+
   const textColor = isBlackScreen 
     ? 'transparent' 
-    : (isDarkCanvas ? '#ffffff' : '#0f172a'); // text-slate-900 is #0f172a
+    : (bgTheme.textColor || '#ffffff');
+    
+  const textShadow = isBlackScreen
+    ? 'none'
+    : (bgTheme.textShadow || '0 2px 10px rgba(0,0,0,0.8)');
 
   const fontSizeVal = typeof state?.fontSize === 'number' && !isNaN(state.fontSize) ? state.fontSize : (Number(state?.fontSize) || 48);
 
@@ -309,7 +302,7 @@ export function PresentationWindow() {
     return (
       <div 
         className="fixed inset-0 w-screen h-screen flex items-center justify-center overflow-hidden select-none bg-black transition-colors duration-500"
-        style={{ backgroundColor: isBlackScreen ? '#000000' : (isDarkCanvas ? '#020617' : '#000000') }}
+        style={{ backgroundColor: '#000000' }}
       >
         {/* Auto-hiding Top Header Bar (Disappears after 3 seconds) */}
         <div 
@@ -385,7 +378,7 @@ export function PresentationWindow() {
     <div
       className="fixed inset-0 w-screen h-screen flex flex-col justify-center items-center p-6 sm:p-12 md:p-16 overflow-hidden select-none transition-colors duration-500"
       style={{ 
-        backgroundColor: bgColor, 
+        ...containerBgStyle, 
         color: isBlackScreen ? '#ffffff' : textColor
       }}
     >
@@ -395,7 +388,14 @@ export function PresentationWindow() {
           showHeaders ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         }`}
       >
-        <div className="font-semibold text-white/90 drop-shadow-sm">{state?.subtitle || 'ECI Songbook'}</div>
+        <div className="font-semibold text-white/90 drop-shadow-sm flex items-center gap-2">
+          <span>{state?.subtitle || 'ECI Songbook'}</span>
+          {bgTheme && !isBlackScreen && (
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/10 text-white/80 border border-white/10 font-sans font-medium">
+              {bgTheme.name}
+            </span>
+          )}
+        </div>
         <div className="flex items-center gap-3">
           {isFirestoreConnected ? (
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[11px] font-medium backdrop-blur-sm">
@@ -448,7 +448,7 @@ export function PresentationWindow() {
               <Tv className="w-8 h-8 animate-pulse" />
             </div>
             <div className="space-y-2 max-w-lg">
-              <h2 className="text-2xl font-bold tracking-tight" style={{ color: textColor }}>
+              <h2 className="text-2xl font-bold tracking-tight" style={{ color: textColor, textShadow }}>
                 {state?.title || 'Presentation Standby'}
               </h2>
               <p className="text-sm opacity-70 leading-relaxed" style={{ color: textColor }}>
@@ -470,7 +470,8 @@ export function PresentationWindow() {
                   fontSize: `${fontSizeVal}px`, 
                   fontWeight: fontWeightVal, 
                   lineHeight: 1.3, 
-                  color: textColor 
+                  color: textColor,
+                  textShadow
                 }}
               >
                 {activeSlideContent}

@@ -7,6 +7,7 @@ export interface PresentationState {
   slides: string[];
   currentSlideIndex: number;
   theme: 'dark' | 'light';
+  backgroundThemeId?: string; // One of the 10 lyrical background themes
   blackScreen: boolean;
   fontSize: number; // in pixels
   fontFamily: string;
@@ -24,6 +25,7 @@ export const DEFAULT_STATE: PresentationState = {
   slides: [],
   currentSlideIndex: 0,
   theme: 'dark',
+  backgroundThemeId: 'midnight-sanctuary',
   blackScreen: false,
   fontSize: 48,
   fontFamily: 'font-baloo',
@@ -171,18 +173,81 @@ export function getPresentationState(): PresentationState {
 }
 
 /**
- * Open the presentation window in fullscreen/popup configuration
+ * Open the presentation window in fullscreen/popup/windowed configuration
  */
-export function openPresentationWindow(isNewWindow: boolean = false): Window | null {
+export function openPresentationWindow(
+  options: boolean | { isNewWindow?: boolean; width?: number; height?: number; resizable?: boolean } = false
+): Window | null {
   if (typeof window === 'undefined') return null;
   
+  const isNewWindow = typeof options === 'boolean' ? options : (options?.isNewWindow ?? false);
+  const width = typeof options === 'object' && options?.width ? options.width : 1024;
+  const height = typeof options === 'object' && options?.height ? options.height : 768;
+  const resizable = typeof options === 'object' && options?.resizable !== undefined ? (options.resizable ? 'yes' : 'no') : 'yes';
+
   const url = `${window.location.origin}${window.location.pathname}?mode=presentation`;
   const name = isNewWindow ? `eci-presentation-window-${Date.now()}` : 'eci-presentation-window';
   
-  const features = 'width=1024,height=768,menubar=no,toolbar=no,location=no,status=no,personalbar=no';
+  const features = `width=${width},height=${height},menubar=no,toolbar=no,location=no,status=no,personalbar=no,resizable=${resizable},scrollbars=no`;
   const win = window.open(url, name, features);
   if (win) {
     win.focus();
   }
   return win;
+}
+
+/**
+ * Opens an independent, resizable presentation window specifically optimized for windowed multitasking
+ */
+export function openWindowedPresentation(isNewWindow: boolean = true): Window | null {
+  return openPresentationWindow({
+    isNewWindow,
+    width: 980,
+    height: 640,
+    resizable: true
+  });
+}
+
+/**
+ * Gets the persisted global canvas theme ('light' | 'dark')
+ */
+export function getStoredCanvasTheme(): 'light' | 'dark' {
+  if (typeof window === 'undefined') return 'dark';
+  const storedCanvas = localStorage.getItem('canvas_theme');
+  if (storedCanvas === 'light' || storedCanvas === 'dark') {
+    return storedCanvas;
+  }
+  const storedTheme = localStorage.getItem('theme');
+  if (storedTheme === 'light' || storedTheme === 'dark') {
+    return storedTheme;
+  }
+  return 'dark';
+}
+
+/**
+ * Sets the global canvas theme across the entire application and syncs with presentation
+ */
+export function setGlobalCanvasTheme(theme: 'light' | 'dark') {
+  if (typeof window === 'undefined') return;
+  
+  localStorage.setItem('canvas_theme', theme);
+  localStorage.setItem('theme', theme);
+
+  if (theme === 'dark') {
+    document.documentElement.classList.add('dark');
+    document.documentElement.setAttribute('data-canvas-theme', 'dark');
+  } else {
+    document.documentElement.classList.remove('dark');
+    document.documentElement.setAttribute('data-canvas-theme', 'light');
+  }
+
+  // Update presentation state if it exists
+  const currentPres = getPresentationState();
+  if (currentPres && currentPres.theme !== theme) {
+    const updated = { ...currentPres, theme };
+    publishPresentationState(updated);
+  }
+
+  // Dispatch custom event for immediate reactive updates across components
+  window.dispatchEvent(new CustomEvent('canvasThemeChange', { detail: { theme } }));
 }

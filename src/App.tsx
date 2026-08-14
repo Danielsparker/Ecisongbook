@@ -43,6 +43,7 @@ export default function App() {
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
+  const [canvasTheme, setCanvasTheme] = useState<'light' | 'dark'>(() => (localStorage.getItem('eci_canvas_theme') as 'light' | 'dark') || 'dark');
   const [publicSubmissions, setPublicSubmissions] = useState(true);
 
   const isAdmin = useMemo(() => {
@@ -216,6 +217,8 @@ export default function App() {
         initialActiveSong={presenterActiveSong} 
         onExit={() => setPresenterActiveSong(null)} 
         isDarkMode={isDarkMode}
+        canvasTheme={canvasTheme}
+        onToggleCanvasTheme={(theme) => setCanvasTheme(theme)}
       />
     );
   }
