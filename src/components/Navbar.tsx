@@ -1,15 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Music, Search, Plus, LogIn, LogOut, User, Settings, Loader2, Tv, Monitor, ChevronDown, Sparkles, Sliders } from 'lucide-react';
+import { Music, Plus, LogIn, LogOut, User, Settings, Loader2, Tv } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { presenterManager, DisplayInfo } from '../services/presenterManager';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 
 interface NavbarProps {
   user: any;
@@ -78,64 +70,6 @@ export function Navbar({
               <span className="hidden md:inline-flex text-[10px] px-1.5 py-0.2 rounded bg-brand-700 font-mono">2nd Display</span>
             )}
           </Button>
-
-          {/* Options Dropdown Menu */}
-          <DropdownMenu>
-            <DropdownMenuTrigger className="inline-flex items-center gap-1.5 h-8 px-2.5 text-xs sm:text-sm font-medium rounded-xl border border-slate-200 dark:border-slate-800 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-900/50 text-slate-900 dark:text-slate-100 transition-colors cursor-pointer outline-none">
-              <span>Options</span>
-              <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-64 p-2 rounded-2xl dark:bg-slate-950 dark:border-slate-800">
-              <DropdownMenuLabel className="text-xs font-semibold text-slate-400 uppercase tracking-wider px-2 py-1.5">
-                Presentation Layer
-              </DropdownMenuLabel>
-              
-              <DropdownMenuItem 
-                onClick={handleOpenPresenterView}
-                className="flex items-center justify-between p-2.5 rounded-xl cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-950/40"
-              >
-                <div className="flex items-center gap-2.5">
-                  <Monitor className="h-4 w-4 text-brand-600 dark:text-brand-400" />
-                  <div>
-                    <div className="font-semibold text-xs text-slate-900 dark:text-white">Presenter View</div>
-                    <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                      {displayInfo.isExtended ? 'Auto-detected External Screen' : 'Opens separate presentation screen'}
-                    </div>
-                  </div>
-                </div>
-                {isWindowOpen && (
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                )}
-              </DropdownMenuItem>
-
-              {onOpenStudio && (
-                <DropdownMenuItem 
-                  onClick={onOpenStudio}
-                  className="flex items-center gap-2.5 p-2.5 rounded-xl cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-900"
-                >
-                  <Sliders className="h-4 w-4 text-purple-500" />
-                  <div>
-                    <div className="font-semibold text-xs text-slate-900 dark:text-white">Studio Control Room</div>
-                    <div className="text-[11px] text-slate-500 dark:text-slate-400">Full dashboard remote for lyrics & Bible</div>
-                  </div>
-                </DropdownMenuItem>
-              )}
-
-              <DropdownMenuSeparator className="my-1.5 dark:bg-slate-800" />
-
-              <DropdownMenuLabel className="text-xs font-semibold text-slate-400 uppercase tracking-wider px-2 py-1.5">
-                Preferences & System
-              </DropdownMenuLabel>
-
-              <DropdownMenuItem 
-                onClick={onOpenSettings}
-                className="flex items-center gap-2.5 p-2.5 rounded-xl cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-900"
-              >
-                <Settings className="h-4 w-4 text-slate-500" />
-                <span className="text-xs font-medium text-slate-900 dark:text-white">Settings & Appearance</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
 
           <Button 
             variant="outline" 
