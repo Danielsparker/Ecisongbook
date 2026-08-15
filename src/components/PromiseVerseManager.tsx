@@ -30,6 +30,7 @@ import {
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { PromiseVerse } from '../types';
 import { publishPresentationState, getPresentationState } from '../services/presentationService';
+import { presenterManager } from '../services/presenterManager';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -226,21 +227,7 @@ export function PromiseVerseManager({ user, canvasTheme, onPresentVerse }: Promi
   };
 
   const handlePresent = (verse: PromiseVerse) => {
-    const currentState = getPresentationState();
-    const updatedState = {
-      ...currentState,
-      title: verse.title,
-      subtitle: verse.reference || `Monthly Promise Verse (${verse.month || ''})`,
-      slides: [],
-      currentSlideIndex: 0,
-      activeType: 'promiseVerse' as const,
-      promiseVerseUrl: verse.imageUrl,
-      promiseVerseReference: verse.reference,
-      blackScreen: false,
-      isExited: false,
-    };
-
-    publishPresentationState(updatedState);
+    presenterManager.presentPromiseVerse(verse, true);
 
     if (onPresentVerse) {
       onPresentVerse(verse);

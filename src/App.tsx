@@ -24,7 +24,8 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { Button } from '@/components/ui/button';
 import { PresentationWindow } from './components/PresentationWindow';
 import { PresenterControl } from './components/PresenterControl';
-import { openPresentationWindow } from './services/presentationService';
+import { PresenterDock } from './components/PresenterDock';
+import { presenterManager } from './services/presenterManager';
 
 export default function App() {
   const urlParams = useMemo(() => new URLSearchParams(window.location.search), []);
@@ -36,7 +37,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'songs' | 'bible' | 'promiseVerse'>('songs');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSong, setSelectedSong] = useState<Song | null>(null);
-  const [presenterActiveSong, setPresenterActiveSong] = useState<Song | null>(null);
+  const [isStudioOpen, setIsStudioOpen] = useState(false);
   const [editingSong, setEditingSong] = useState<Song | null>(null);
   const [isSubmitOpen, setIsSubmitOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -65,7 +66,7 @@ export default function App() {
   };
 
   const handlePresentSong = (song: Song) => {
-    setPresenterActiveSong(song);
+    presenterManager.presentSong(song, true);
   };
 
   const handleUpdateSong = async (songId: string, updatedData: { title: string; songNo: number; genre: string; lyrics: string }) => {
@@ -210,28 +211,32 @@ export default function App() {
     );
   }
 
-  if (presenterActiveSong) {
+  if (isStudioOpen) {
     return (
       <PresenterControl 
         songs={songs} 
-        initialActiveSong={presenterActiveSong} 
-        onExit={() => setPresenterActiveSong(null)} 
+        initialActiveSong={selectedSong || songs[0] || null} 
+        onExit={() => setIsStudioOpen(false)} 
         isDarkMode={isDarkMode}
         canvasTheme={canvasTheme}
-        onToggleCanvasTheme={(theme) => setCanvasTheme(theme)}
+        onToggleCanvasTheme={(theme) => {
+          setCanvasTheme(theme);
+          localStorage.setItem('eci_canvas_theme', theme);
+        }}
       />
     );
   }
 
   return (
     <ErrorBoundary>
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-20 transition-colors duration-300">
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-28 transition-colors duration-300">
         <Navbar 
           user={user} 
           onLogin={handleLogin} 
           onLogout={logout} 
           onAddSong={handleAddClick}
           onOpenSettings={() => setIsSettingsOpen(true)}
+          onOpenStudio={() => setIsStudioOpen(true)}
           canSubmit={canSubmit}
           isLoggingIn={isLoggingIn}
         />
@@ -385,14 +390,7 @@ export default function App() {
                     user={user} 
                     canvasTheme={isDarkMode ? 'dark' : 'light'} 
                     onPresentVerse={(verse) => {
-                      setPresenterActiveSong({
-                        title: verse.title,
-                        songNo: 0,
-                        genre: verse.month || 'Promise Verse',
-                        lyrics: verse.reference || verse.title,
-                        submittedBy: verse.submittedBy || 'system',
-                        createdAt: new Date(),
-                      });
+                      presenterManager.presentPromiseVerse(verse, true);
                     }}
                   />
                 )}
@@ -444,6 +442,9 @@ export default function App() {
         >
           <Plus className="h-6 w-6" />
         </Button>
+
+        {/* Live Presentation Controller Dock on Primary Screen */}
+        <PresenterDock onOpenStudio={() => setIsStudioOpen(true)} />
       </div>
     </ErrorBoundary>
   );

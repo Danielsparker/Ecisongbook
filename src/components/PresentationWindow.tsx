@@ -34,9 +34,19 @@ export function PresentationWindow() {
       setIsFullscreen(!!document.fullscreenElement);
     };
 
+    const handleMessage = (e: MessageEvent) => {
+      if (e.data?.type === 'REQUEST_AUTO_FULLSCREEN') {
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {});
+        }
+      }
+    };
+
     window.addEventListener('mousemove', resetTimer);
     window.addEventListener('touchstart', resetTimer);
     window.addEventListener('keydown', resetTimer);
+    window.addEventListener('dblclick', toggleFullscreen);
+    window.addEventListener('message', handleMessage);
     document.addEventListener('fullscreenchange', handleFullscreenChange);
 
     return () => {
@@ -46,6 +56,8 @@ export function PresentationWindow() {
       window.removeEventListener('mousemove', resetTimer);
       window.removeEventListener('touchstart', resetTimer);
       window.removeEventListener('keydown', resetTimer);
+      window.removeEventListener('dblclick', toggleFullscreen);
+      window.removeEventListener('message', handleMessage);
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
     };
   }, []);
@@ -97,6 +109,7 @@ export function PresentationWindow() {
               slides: Array.isArray(data.slides) ? data.slides : [],
               currentSlideIndex: data.currentSlideIndex ?? 0,
               theme: data.theme || 'dark',
+              backgroundThemeId: data.backgroundThemeId || 'midnight-sanctuary',
               blackScreen: !!data.blackScreen,
               fontSize: data.fontSize || 48,
               fontFamily: data.fontFamily || 'font-baloo',

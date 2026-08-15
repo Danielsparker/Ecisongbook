@@ -47,6 +47,7 @@ import {
   setGlobalCanvasTheme,
   PresentationState
 } from '../services/presentationService';
+import { presenterManager } from '../services/presenterManager';
 import { 
   LYRIC_BACKGROUND_THEMES, 
   getBackgroundTheme, 
@@ -321,39 +322,26 @@ export function PresenterControl({
     }));
   };
 
-  const handleSelectPresentationMode = (mode: PresentationMode) => {
+  const handleSelectPresentationMode = async (mode: PresentationMode) => {
     const activeState = { ...presState, isExited: false, blackScreen: false };
     setPresState(activeState);
     publishPresentationState(activeState);
 
-    if (mode === 'presenter') {
-      const win = openPresentationWindow();
+    if (mode === 'presenter' || mode === 'windowed') {
+      const win = await presenterManager.openPresenterWindow();
       setProjectorWindow(win);
     } else if (mode === 'fullscreen') {
       setIsFullScreenModalOpen(true);
-    } else if (mode === 'windowed') {
-      const win = openWindowedPresentation();
-      setProjectorWindow(win);
     }
   };
 
-  const handleLaunchProjector = () => {
-    handleSelectPresentationMode('presenter');
+  const handleLaunchProjector = async () => {
+    await handleSelectPresentationMode('presenter');
   };
 
   const handleExit = () => {
-    // Instantly clear presentation state in Firebase, BroadcastChannel, and LocalStorage
-    clearPresentationState();
-
-    // Close local projector window if opened
-    if (projectorWindow && !projectorWindow.closed) {
-      try {
-        projectorWindow.close();
-      } catch (e) {
-        console.warn("Could not close projector window:", e);
-      }
-    }
-
+    // End presentation state cleanly without closing primary window
+    presenterManager.endPresentation(false);
     onExit();
   };
 
