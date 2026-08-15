@@ -442,6 +442,26 @@ class PresenterWindowManager {
   }
 
   /**
+   * Opens / Focuses the full Presenter Control Center in a new Chrome tab
+   */
+  public openPresenterControlTab(songId?: string): Window | null {
+    if (typeof window === 'undefined') return null;
+    const searchParams = new URLSearchParams();
+    searchParams.set('mode', 'control');
+    if (songId) {
+      searchParams.set('songId', songId);
+    }
+    const url = `${window.location.origin}${window.location.pathname}?${searchParams.toString()}`;
+    const win = window.open(url, 'eci_presenter_control_tab');
+    if (win) {
+      try {
+        win.focus();
+      } catch (e) {}
+    }
+    return win;
+  }
+
+  /**
    * Opens / Focuses Presenter View (from Options menu or Header button)
    */
   public async openPresenterView(): Promise<Window | null> {

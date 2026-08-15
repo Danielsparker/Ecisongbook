@@ -30,6 +30,11 @@ import { presenterManager } from './services/presenterManager';
 export default function App() {
   const urlParams = useMemo(() => new URLSearchParams(window.location.search), []);
   const isPresentationMode = useMemo(() => urlParams.get('mode') === 'presentation', [urlParams]);
+  const isPresenterControlMode = useMemo(() => {
+    const mode = urlParams.get('mode');
+    return mode === 'control' || mode === 'presenter' || mode === 'studio';
+  }, [urlParams]);
+  const urlSongId = useMemo(() => urlParams.get('songId'), [urlParams]);
 
   const [user, loading] = useAuthState(auth);
   const [userRole, setUserRole] = useState<string | null>(null);
@@ -37,7 +42,6 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'songs' | 'bible' | 'promiseVerse'>('songs');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSong, setSelectedSong] = useState<Song | null>(null);
-  const [isStudioOpen, setIsStudioOpen] = useState(false);
   const [editingSong, setEditingSong] = useState<Song | null>(null);
   const [isSubmitOpen, setIsSubmitOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -200,6 +204,31 @@ export default function App() {
     return <PresentationWindow />;
   }
 
+  if (isPresenterControlMode) {
+    const initialPresenterSong = urlSongId ? songs.find(s => s.id === urlSongId) : (selectedSong || songs[0] || null);
+
+    return (
+      <PresenterControl 
+        songs={songs} 
+        initialActiveSong={initialPresenterSong || null} 
+        onExit={() => {
+          try {
+            window.close();
+          } catch (e) {}
+          if (!window.closed) {
+            window.location.href = window.location.pathname;
+          }
+        }} 
+        isDarkMode={isDarkMode}
+        canvasTheme={canvasTheme}
+        onToggleCanvasTheme={(theme) => {
+          setCanvasTheme(theme);
+          localStorage.setItem('eci_canvas_theme', theme);
+        }}
+      />
+    );
+  }
+
   if (loading && isInitialLoading) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-slate-50 dark:bg-slate-950">
@@ -211,21 +240,9 @@ export default function App() {
     );
   }
 
-  if (isStudioOpen) {
-    return (
-      <PresenterControl 
-        songs={songs} 
-        initialActiveSong={selectedSong || songs[0] || null} 
-        onExit={() => setIsStudioOpen(false)} 
-        isDarkMode={isDarkMode}
-        canvasTheme={canvasTheme}
-        onToggleCanvasTheme={(theme) => {
-          setCanvasTheme(theme);
-          localStorage.setItem('eci_canvas_theme', theme);
-        }}
-      />
-    );
-  }
+  const handleOpenStudioTab = (songId?: string) => {
+    presenterManager.openPresenterControlTab(songId);
+  };
 
   return (
     <ErrorBoundary>
@@ -236,7 +253,7 @@ export default function App() {
           onLogout={logout} 
           onAddSong={handleAddClick}
           onOpenSettings={() => setIsSettingsOpen(true)}
-          onOpenStudio={() => setIsStudioOpen(true)}
+          onOpenStudio={() => handleOpenStudioTab(selectedSong?.id)}
           canSubmit={canSubmit}
           isLoggingIn={isLoggingIn}
         />
@@ -444,7 +461,7 @@ export default function App() {
         </Button>
 
         {/* Live Presentation Controller Dock on Primary Screen */}
-        <PresenterDock onOpenStudio={() => setIsStudioOpen(true)} />
+        <PresenterDock onOpenStudio={() => handleOpenStudioTab(selectedSong?.id)} />
       </div>
     </ErrorBoundary>
   );

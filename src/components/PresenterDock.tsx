@@ -343,19 +343,17 @@ export function PresenterDock({ onOpenStudio }: PresenterDockProps) {
               <ExternalLink className="w-4 h-4" />
             </Button>
 
-            {/* Studio Remote Modal Opener */}
-            {onOpenStudio && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={onOpenStudio}
-                className="h-9 px-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 border-brand-500 text-white font-medium text-xs gap-1.5 cursor-pointer shadow-md"
-                title="Open Studio Control Room"
-              >
-                <Sliders className="w-3.5 h-3.5" />
-                <span className="hidden md:inline">Studio</span>
-              </Button>
-            )}
+            {/* Presenter Control Center New Tab Opener */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onOpenStudio || (() => presenterManager.openPresenterControlTab())}
+              className="h-9 px-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 border-purple-500 text-white font-medium text-xs gap-1.5 cursor-pointer shadow-md"
+              title="Open Presenter Control Center in New Tab"
+            >
+              <Sliders className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">Control Center</span>
+            </Button>
 
             {/* End Presentation Button */}
             <Button

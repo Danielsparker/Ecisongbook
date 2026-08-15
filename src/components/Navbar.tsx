@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Music, Plus, LogIn, LogOut, User, Settings, Loader2, Tv } from 'lucide-react';
+import { Music, Plus, LogIn, LogOut, User, Settings, Loader2, Tv, Sliders } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { presenterManager, DisplayInfo } from '../services/presenterManager';
 
@@ -69,6 +69,18 @@ export function Navbar({
             {displayInfo.isExtended && (
               <span className="hidden md:inline-flex text-[10px] px-1.5 py-0.2 rounded bg-brand-700 font-mono">2nd Display</span>
             )}
+          </Button>
+
+          {/* Direct "Control Center" Button to open in new tab */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onOpenStudio || (() => presenterManager.openPresenterControlTab())}
+            className="flex items-center gap-1.5 rounded-xl border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-900 cursor-pointer hidden md:inline-flex"
+            title="Open Presenter Control Center in New Tab"
+          >
+            <Sliders className="h-4 w-4 text-purple-500" />
+            <span className="font-medium">Control Center</span>
           </Button>
 
           <Button 
