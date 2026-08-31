@@ -91,6 +91,7 @@ export async function publishPresentationStateToFirestore(state: PresentationSta
       slides: state.slides || [],
       currentSlideIndex: Math.floor(state.currentSlideIndex ?? 0),
       theme: state.theme || 'dark',
+      backgroundThemeId: state.backgroundThemeId || 'midnight-sanctuary',
       blackScreen: !!state.blackScreen,
       fontSize: Math.round(Number(state.fontSize) || 48),
       fontFamily: state.fontFamily || 'font-baloo',
