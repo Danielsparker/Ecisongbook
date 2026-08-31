@@ -345,17 +345,23 @@ export function PresenterControl({
     onExit();
   };
 
-  const toggleProjectorFullscreen = () => {
-    // If window is open, try requesting fullscreen in that window
+  const toggleProjectorFullscreen = async () => {
+    // If window is open, focus and request fullscreen
     if (projectorWindow && !projectorWindow.closed) {
       try {
-        projectorWindow.document.documentElement.requestFullscreen();
+        projectorWindow.focus();
+        projectorWindow.postMessage({ type: 'REQUEST_AUTO_FULLSCREEN' }, '*');
+        if (projectorWindow.document?.documentElement?.requestFullscreen) {
+          projectorWindow.document.documentElement.requestFullscreen().catch(() => {});
+        }
       } catch (e) {
-        console.warn("Fullscreen request on popup window blocked or unsupported", e);
-        alert("To make fullscreen, click on the Projector tab/window and press 'F' on your keyboard.");
+        console.warn("Fullscreen request on popup window:", e);
       }
     } else {
-      alert("No active projector screen opened! Click 'Live' and choose 'Presenter View' or 'Full Screen'.");
+      const win = await presenterManager.openPresenterWindow();
+      if (win) {
+        setProjectorWindow(win);
+      }
     }
   };
 

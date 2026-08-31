@@ -286,19 +286,19 @@ class PresenterWindowManager {
       // Position directly within the external display coordinate system
       left = targetScreen.availLeft ?? targetScreen.left ?? (window.screen.width);
       top = targetScreen.availTop ?? targetScreen.top ?? 0;
-      width = targetScreen.availWidth ?? targetScreen.width ?? 1920;
-      height = targetScreen.availHeight ?? targetScreen.height ?? 1080;
+      width = targetScreen.width ?? targetScreen.availWidth ?? 1920;
+      height = targetScreen.height ?? targetScreen.availHeight ?? 1080;
     } else {
       // If single display, center neatly on primary screen
-      width = Math.min(1024, Math.floor(window.screen.availWidth * 0.8));
-      height = Math.min(720, Math.floor(window.screen.availHeight * 0.8));
+      width = Math.min(1280, Math.floor(window.screen.availWidth * 0.85));
+      height = Math.min(800, Math.floor(window.screen.availHeight * 0.85));
       left = Math.floor((window.screen.availWidth - width) / 2);
       top = Math.floor((window.screen.availHeight - height) / 2);
     }
 
     const url = `${window.location.origin}${window.location.pathname}?mode=presentation`;
     const windowName = 'eci_presenter_view_window';
-    const features = `left=${left},top=${top},width=${width},height=${height},menubar=no,toolbar=no,location=no,status=no,personalbar=no,resizable=yes,scrollbars=no`;
+    const features = `popup=yes,fullscreen=yes,left=${left},top=${top},width=${width},height=${height},menubar=no,toolbar=no,location=no,status=no,directories=no,personalbar=no,resizable=yes,scrollbars=no`;
 
     try {
       const win = window.open(url, windowName, features);

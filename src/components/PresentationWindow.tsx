@@ -13,6 +13,51 @@ export function PresentationWindow() {
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const enterFullscreen = async () => {
+    try {
+      const docEl = document.documentElement as any;
+      if (docEl.requestFullscreen) {
+        await docEl.requestFullscreen();
+      } else if (docEl.webkitRequestFullscreen) {
+        await docEl.webkitRequestFullscreen();
+      } else if (docEl.mozRequestFullScreen) {
+        await docEl.mozRequestFullScreen();
+      } else if (docEl.msRequestFullscreen) {
+        await docEl.msRequestFullscreen();
+      }
+      setIsFullscreen(true);
+    } catch (e) {
+      console.warn('Fullscreen request could not be completed:', e);
+    }
+  };
+
+  const exitFullscreen = async () => {
+    try {
+      const doc = document as any;
+      if (doc.exitFullscreen) {
+        await doc.exitFullscreen();
+      } else if (doc.webkitExitFullscreen) {
+        await doc.webkitExitFullscreen();
+      } else if (doc.mozCancelFullScreen) {
+        await doc.mozCancelFullScreen();
+      } else if (doc.msExitFullscreen) {
+        await doc.msExitFullscreen();
+      }
+      setIsFullscreen(false);
+    } catch (e) {
+      console.warn('Exit fullscreen error:', e);
+    }
+  };
+
+  const toggleFullscreen = () => {
+    const isCurrentlyFull = !!(document.fullscreenElement || (document as any).webkitFullscreenElement);
+    if (!isCurrentlyFull) {
+      enterFullscreen();
+    } else {
+      exitFullscreen();
+    }
+  };
+
   // Auto-hide headers and overlays after 3 seconds of inactivity
   useEffect(() => {
     const resetTimer = () => {
@@ -31,23 +76,32 @@ export function PresentationWindow() {
     }, 3000);
 
     const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
+      setIsFullscreen(!!(document.fullscreenElement || (document as any).webkitFullscreenElement));
     };
 
     const handleMessage = (e: MessageEvent) => {
       if (e.data?.type === 'REQUEST_AUTO_FULLSCREEN') {
         if (!document.fullscreenElement) {
-          document.documentElement.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {});
+          enterFullscreen();
         }
+      }
+    };
+
+    // Auto-enter fullscreen on first user interaction anywhere on the window
+    const handleFirstInteraction = () => {
+      if (!document.fullscreenElement && !(document as any).webkitFullscreenElement) {
+        enterFullscreen();
       }
     };
 
     window.addEventListener('mousemove', resetTimer);
     window.addEventListener('touchstart', resetTimer);
     window.addEventListener('keydown', resetTimer);
+    window.addEventListener('click', handleFirstInteraction);
     window.addEventListener('dblclick', toggleFullscreen);
     window.addEventListener('message', handleMessage);
     document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
 
     return () => {
       if (hideTimerRef.current) {
@@ -56,21 +110,13 @@ export function PresentationWindow() {
       window.removeEventListener('mousemove', resetTimer);
       window.removeEventListener('touchstart', resetTimer);
       window.removeEventListener('keydown', resetTimer);
+      window.removeEventListener('click', handleFirstInteraction);
       window.removeEventListener('dblclick', toggleFullscreen);
       window.removeEventListener('message', handleMessage);
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
     };
   }, []);
-
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {});
-    } else {
-      if (document.exitFullscreen) {
-        document.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => {});
-      }
-    }
-  };
 
   useEffect(() => {
     // Load initial state
@@ -184,6 +230,11 @@ export function PresentationWindow() {
       const slides = state?.slides || [];
       const currentSlideIndex = state?.currentSlideIndex ?? 0;
 
+      // Auto request fullscreen on navigation keys if not in fullscreen
+      if (!document.fullscreenElement && !(document as any).webkitFullscreenElement && (key === 'f' || key === ' ' || e.key === 'ArrowRight' || e.key === 'ArrowLeft' || e.key === 'Enter')) {
+        enterFullscreen();
+      }
+
       if (e.key === 'ArrowRight' || e.key === ' ') {
         e.preventDefault();
         if (currentSlideIndex < slides.length - 1) {
@@ -203,15 +254,9 @@ export function PresentationWindow() {
         const newState = { ...state, blackScreen: !state.blackScreen };
         setState(newState);
         publishPresentationState(newState);
-      } else if (key === 'f') {
+      } else if (key === 'f' || e.key === 'F11') {
         e.preventDefault();
-        if (!document.fullscreenElement) {
-          document.documentElement.requestFullscreen().catch((err) => {
-            console.error('Error enabling fullscreen:', err);
-          });
-        } else {
-          document.exitFullscreen();
-        }
+        toggleFullscreen();
       }
     };
 
@@ -314,9 +359,28 @@ export function PresentationWindow() {
   if (isPromiseVerse) {
     return (
       <div 
-        className="fixed inset-0 w-screen h-screen flex items-center justify-center overflow-hidden select-none bg-black transition-colors duration-500"
+        onClick={() => {
+          if (!document.fullscreenElement && !(document as any).webkitFullscreenElement) {
+            enterFullscreen();
+          }
+        }}
+        className="fixed inset-0 w-screen h-screen flex items-center justify-center overflow-hidden select-none bg-black transition-colors duration-500 cursor-pointer"
         style={{ backgroundColor: '#000000' }}
       >
+        {/* Floating Quick Fullscreen Trigger Banner if not yet Fullscreen */}
+        {!isFullscreen && (
+          <div 
+            onClick={(e) => {
+              e.stopPropagation();
+              enterFullscreen();
+            }}
+            className="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full bg-brand-600/90 hover:bg-brand-500 text-white text-xs font-semibold shadow-2xl backdrop-blur-md flex items-center gap-2 border border-white/20 cursor-pointer transition-transform hover:scale-105"
+          >
+            <Maximize className="w-4 h-4 text-white" />
+            <span>Click to enter Full Screen mode (or press 'F')</span>
+          </div>
+        )}
+
         {/* Auto-hiding Top Header Bar (Disappears after 3 seconds) */}
         <div 
           className={`fixed top-0 left-0 right-0 z-50 px-6 py-4 flex justify-between items-center transition-opacity duration-500 bg-gradient-to-b from-black/80 via-black/40 to-transparent text-white text-xs font-mono uppercase tracking-wider ${
@@ -332,7 +396,10 @@ export function PresentationWindow() {
               </span>
             )}
             <button
-              onClick={toggleFullscreen}
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleFullscreen();
+              }}
               className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white border border-white/20 text-xs transition-colors cursor-pointer"
               title="Toggle Fullscreen"
             >
@@ -389,12 +456,31 @@ export function PresentationWindow() {
 
   return (
     <div
-      className="fixed inset-0 w-screen h-screen flex flex-col justify-center items-center p-6 sm:p-12 md:p-16 overflow-hidden select-none transition-colors duration-500"
+      onClick={() => {
+        if (!document.fullscreenElement && !(document as any).webkitFullscreenElement) {
+          enterFullscreen();
+        }
+      }}
+      className="fixed inset-0 w-screen h-screen flex flex-col justify-center items-center p-6 sm:p-12 md:p-16 overflow-hidden select-none transition-colors duration-500 cursor-pointer"
       style={{ 
         ...containerBgStyle, 
         color: isBlackScreen ? '#ffffff' : textColor
       }}
     >
+      {/* Floating Quick Fullscreen Trigger Banner if not yet Fullscreen */}
+      {!isFullscreen && (
+        <div 
+          onClick={(e) => {
+            e.stopPropagation();
+            enterFullscreen();
+          }}
+          className="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full bg-brand-600/90 hover:bg-brand-500 text-white text-xs font-semibold shadow-2xl backdrop-blur-md flex items-center gap-2 border border-white/20 cursor-pointer transition-transform hover:scale-105"
+        >
+          <Maximize className="w-4 h-4 text-white" />
+          <span>Click anywhere to enter Full Screen mode (or press 'F')</span>
+        </div>
+      )}
+
       {/* Auto-hiding Top Header Bar (Fades out after 3 seconds of inactivity) */}
       <div 
         className={`fixed top-0 left-0 right-0 z-50 px-6 py-4 flex justify-between items-center transition-opacity duration-500 bg-gradient-to-b from-black/60 via-black/20 to-transparent text-white text-xs font-mono uppercase tracking-wider ${
@@ -421,7 +507,10 @@ export function PresentationWindow() {
             </span>
           )}
           <button
-            onClick={toggleFullscreen}
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleFullscreen();
+            }}
             className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white border border-white/20 text-xs transition-colors backdrop-blur-sm cursor-pointer"
             title="Toggle Fullscreen mode"
           >
