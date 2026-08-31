@@ -57,9 +57,22 @@ export function FullScreenPresentation({
   const [currentSlideIndex, setCurrentSlideIndex] = useState<number>(startSlideIndex);
   const [blackScreen, setBlackScreen] = useState<boolean>(false);
   const [showControls, setShowControls] = useState<boolean>(true);
-  const [fontSize, setFontSize] = useState<number>(48);
-  const [fontFamily, setFontFamily] = useState<string>('font-baloo');
-  const [alignment, setAlignment] = useState<'left' | 'center' | 'right'>('center');
+  const [fontSize, setFontSize] = useState<number>(() => {
+    const saved = getPresentationState();
+    return saved.fontSize || 48;
+  });
+  const [fontFamily, setFontFamily] = useState<string>(() => {
+    const saved = getPresentationState();
+    return saved.fontFamily || 'font-baloo';
+  });
+  const [fontWeight, setFontWeight] = useState<string>(() => {
+    const saved = getPresentationState();
+    return saved.fontWeight || '700';
+  });
+  const [alignment, setAlignment] = useState<'left' | 'center' | 'right'>(() => {
+    const saved = getPresentationState();
+    return saved.alignment || 'center';
+  });
   const [isFullscreenActive, setIsFullscreenActive] = useState<boolean>(false);
   const [bgThemeId, setBgThemeId] = useState<string>(() => {
     const saved = getPresentationState();
@@ -246,6 +259,32 @@ export function FullScreenPresentation({
     center: 'text-center justify-center items-center',
     right: 'text-right justify-end items-end',
   }[alignment] || 'text-center justify-center items-center';
+
+  const fontClass = {
+    'font-baloo': 'font-baloo',
+    'font-anek': 'font-anek',
+    'font-tiro': 'font-tiro',
+    'font-sans': 'font-sans',
+    'font-serif': 'font-serif',
+    'font-mono': 'font-mono',
+  }[fontFamily || 'font-baloo'] || 'font-baloo';
+
+  const fontWeightVal = {
+    '900': 900,
+    'black': 900,
+    '800': 800,
+    'extrabold': 800,
+    '700': 700,
+    'bold': 700,
+    '600': 600,
+    'semibold': 600,
+    '500': 500,
+    'medium': 500,
+    '400': 400,
+    'normal': 400,
+    '300': 300,
+    'light': 300,
+  }[String(fontWeight || '700')] || (Number(fontWeight) || 700);
 
   return (
     <div 
@@ -479,9 +518,10 @@ export function FullScreenPresentation({
               className={`w-full max-w-5xl flex flex-col ${alignmentClass}`}
             >
               <p 
-                className="font-baloo font-bold italic tracking-wide break-words whitespace-pre-wrap leading-relaxed transition-colors duration-200"
+                className={`${fontClass} italic tracking-wide break-words whitespace-pre-wrap leading-relaxed transition-colors duration-200`}
                 style={{ 
                   fontSize: 'clamp(28px, 4.5vw, 68px)',
+                  fontWeight: fontWeightVal,
                   color: textColor,
                   textShadow
                 }}

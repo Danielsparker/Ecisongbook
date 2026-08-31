@@ -179,9 +179,26 @@ export function PresenterControl({
     'font-anek': 'font-anek',
     'font-tiro': 'font-tiro',
     'font-sans': 'font-sans',
-    'font-serif': 'font-serif font-medium',
+    'font-serif': 'font-serif',
     'font-mono': 'font-mono',
   }[presState.fontFamily || 'font-baloo'] || 'font-baloo';
+
+  const fontWeightVal = {
+    '900': 900,
+    'black': 900,
+    '800': 800,
+    'extrabold': 800,
+    '700': 700,
+    'bold': 700,
+    '600': 600,
+    'semibold': 600,
+    '500': 500,
+    'medium': 500,
+    '400': 400,
+    'normal': 400,
+    '300': 300,
+    'light': 300,
+  }[String(presState.fontWeight || '700')] || 700;
 
   const projectorUrl = useMemo(() => {
     if (typeof window === 'undefined') return '';
@@ -293,6 +310,10 @@ export function PresenterControl({
       ...prev,
       theme: prev.theme === 'dark' ? 'light' : 'dark'
     }));
+  };
+
+  const handleFontWeightChange = (weight: string) => {
+    setPresState(prev => ({ ...prev, fontWeight: weight }));
   };
 
   const handleAlignmentChange = (align: 'left' | 'center' | 'right') => {
@@ -1122,6 +1143,7 @@ export function PresenterControl({
                       className={`${fontClass} italic max-w-xl break-words whitespace-pre-wrap leading-snug transition-all duration-200`}
                       style={{ 
                         fontSize: `${Math.max(14, Math.min(42, Math.round((presState.fontSize || 48) * 0.45)))}px`,
+                        fontWeight: fontWeightVal,
                         color: monitorTextColor,
                         textShadow: monitorShadow
                       }}
@@ -1425,34 +1447,44 @@ export function PresenterControl({
               {/* Font Weight */}
               <div>
                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Font Weight (Boldness)</label>
-                <div className={`grid grid-cols-3 gap-1 border p-1 rounded-xl text-xs ${
+                <div className={`grid grid-cols-4 gap-1 border p-1 rounded-xl text-xs ${
                   isLightCanvas ? 'bg-slate-50 border-slate-200' : 'bg-slate-900 border-slate-800'
                 }`}>
                   <button 
-                    onClick={() => setPresState(prev => ({ ...prev, fontWeight: '800' }))}
-                    className={`py-1.5 rounded-lg font-extrabold text-center ${
+                    onClick={() => handleFontWeightChange('800')}
+                    className={`py-1.5 rounded-lg font-extrabold text-center transition-colors ${
                       presState.fontWeight === '800' 
-                        ? 'bg-brand-600 text-white font-bold' 
+                        ? 'bg-brand-600 text-white font-bold shadow-sm' 
                         : isLightCanvas ? 'text-slate-700 hover:bg-slate-200' : 'text-slate-400 hover:text-slate-200'
                     }`}
                   >
-                    Extra Bold
+                    Extra
                   </button>
                   <button 
-                    onClick={() => setPresState(prev => ({ ...prev, fontWeight: '700' }))}
-                    className={`py-1.5 rounded-lg font-bold text-center ${
+                    onClick={() => handleFontWeightChange('700')}
+                    className={`py-1.5 rounded-lg font-bold text-center transition-colors ${
                       presState.fontWeight === '700' || !presState.fontWeight 
-                        ? 'bg-brand-600 text-white' 
+                        ? 'bg-brand-600 text-white font-bold shadow-sm' 
                         : isLightCanvas ? 'text-slate-700 hover:bg-slate-200' : 'text-slate-400 hover:text-slate-200'
                     }`}
                   >
                     Bold
                   </button>
                   <button 
-                    onClick={() => setPresState(prev => ({ ...prev, fontWeight: '400' }))}
-                    className={`py-1.5 rounded-lg font-normal text-center ${
+                    onClick={() => handleFontWeightChange('600')}
+                    className={`py-1.5 rounded-lg font-semibold text-center transition-colors ${
+                      presState.fontWeight === '600' 
+                        ? 'bg-brand-600 text-white font-bold shadow-sm' 
+                        : isLightCanvas ? 'text-slate-700 hover:bg-slate-200' : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    Semi
+                  </button>
+                  <button 
+                    onClick={() => handleFontWeightChange('400')}
+                    className={`py-1.5 rounded-lg font-normal text-center transition-colors ${
                       presState.fontWeight === '400' 
-                        ? 'bg-brand-600 text-white' 
+                        ? 'bg-brand-600 text-white font-bold shadow-sm' 
                         : isLightCanvas ? 'text-slate-700 hover:bg-slate-200' : 'text-slate-400 hover:text-slate-200'
                     }`}
                   >

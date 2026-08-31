@@ -324,15 +324,21 @@ export function PresentationWindow() {
   }[state?.fontFamily || 'font-baloo'] || 'font-baloo';
 
   const fontWeightVal = {
-    '400': 400,
-    'normal': 400,
-    '600': 600,
-    'semibold': 600,
-    '700': 700,
-    'bold': 700,
+    '900': 900,
+    'black': 900,
     '800': 800,
     'extrabold': 800,
-  }[state?.fontWeight || '700'] || 700;
+    '700': 700,
+    'bold': 700,
+    '600': 600,
+    'semibold': 600,
+    '500': 500,
+    'medium': 500,
+    '400': 400,
+    'normal': 400,
+    '300': 300,
+    'light': 300,
+  }[String(state?.fontWeight || '700')] || (Number(state?.fontWeight) || 700);
 
   // Dynamic Backdrops and Text Colors with robust Inline Overrides
   const isBlackScreen = !!state?.blackScreen;
