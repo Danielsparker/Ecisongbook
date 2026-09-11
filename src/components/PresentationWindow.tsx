@@ -438,6 +438,7 @@ export function PresentationWindow() {
               <img 
                 src={state.promiseVerseUrl} 
                 alt={state.title || 'Monthly Promise Verse'} 
+                referrerPolicy="no-referrer"
                 className="w-full h-full object-contain"
               />
             </motion.div>

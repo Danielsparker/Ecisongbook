@@ -504,6 +504,7 @@ export function FullScreenPresentation({
             <img
               src={promiseVerse?.imageUrl}
               alt={promiseVerse?.title || 'Promise Verse Wallpaper'}
+              referrerPolicy="no-referrer"
               className="max-h-[85vh] max-w-[90vw] object-contain rounded-2xl shadow-2xl"
             />
           </div>

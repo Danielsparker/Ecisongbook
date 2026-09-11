@@ -225,14 +225,24 @@ export function PresenterControl({
         currentSlideIndex: 0,
         activeType: 'song'
       }));
+    } else if (initialActiveSong) {
+      setActiveSong(initialActiveSong);
+    } else if (songs && songs.length > 0 && (!presState.slides || presState.slides.length === 0)) {
+      setActiveSong(songs[0]);
     }
-  }, [activeSong]);
+  }, [activeSong, initialActiveSong, songs]);
 
   // Handle global keydown events for slide controls and blackout
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore if typing in input fields
-      if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') {
+      // Ignore if typing in input fields, textareas, select dropdowns, or contenteditable areas
+      const activeEl = document.activeElement;
+      if (
+        activeEl?.tagName === 'INPUT' || 
+        activeEl?.tagName === 'TEXTAREA' || 
+        activeEl?.tagName === 'SELECT' ||
+        activeEl?.getAttribute('contenteditable') === 'true'
+      ) {
         return;
       }
 
@@ -542,6 +552,7 @@ export function PresenterControl({
                             <img
                               src={verse.imageUrl}
                               alt={verse.title || 'Promise Verse'}
+                              referrerPolicy="no-referrer"
                               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                             />
                             {isActive ? (
@@ -1027,7 +1038,7 @@ export function PresenterControl({
                       }`}
                     >
                       <div className="relative aspect-video rounded-lg overflow-hidden bg-black">
-                        <img src={pv.imageUrl} alt={pv.title} className="w-full h-full object-cover" />
+                        <img src={pv.imageUrl} alt={pv.title} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent p-2 flex flex-col justify-end">
                           <div className="text-xs font-bold text-white truncate">{pv.title}</div>
                           <div className="text-[10px] text-amber-300 font-medium truncate">{pv.reference || pv.month}</div>
@@ -1135,6 +1146,7 @@ export function PresenterControl({
                       <img 
                         src={presState.promiseVerseUrl} 
                         alt={presState.title || 'Promise Verse Wallpaper'} 
+                        referrerPolicy="no-referrer"
                         className="max-h-full max-w-full object-contain rounded-lg shadow-lg border border-slate-700/50" 
                       />
                     </div>

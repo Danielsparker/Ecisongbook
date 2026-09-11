@@ -46,11 +46,16 @@
         },
         "currentSlideIndex": { "type": "number" },
         "theme": { "type": "string", "enum": ["dark", "light"] },
+        "backgroundThemeId": { "type": "string" },
         "blackScreen": { "type": "boolean" },
         "fontSize": { "type": "number" },
         "fontFamily": { "type": "string" },
+        "fontWeight": { "type": "string" },
         "alignment": { "type": "string", "enum": ["left", "center", "right"] },
-        "activeType": { "type": "string", "enum": ["song", "bible", "custom"] },
+        "activeType": { "type": "string", "enum": ["song", "bible", "promiseVerse", "custom", "none"] },
+        "promiseVerseUrl": { "type": "string" },
+        "promiseVerseReference": { "type": "string" },
+        "isExited": { "type": "boolean" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["title", "slides", "currentSlideIndex", "theme", "blackScreen", "fontSize", "fontFamily", "alignment", "activeType", "updatedAt"]

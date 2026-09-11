@@ -247,13 +247,41 @@ export const downloadSetlistAsPDF = (songs: Song[], setlistName = 'ECI_Setlist')
     throw new Error('No songs provided in setlist to export.');
   }
 
+  const validSongs = songs.filter(s => s.lyrics && s.lyrics.trim());
+  if (validSongs.length === 0) {
+    throw new Error('No songs with lyrics found to export.');
+  }
+
   const safeName = sanitizeFilename(setlistName);
+  const hasTamil = validSongs.some(s => hasIndicOrTamilScript((s.title || '') + (s.lyrics || '')));
+
+  if (hasTamil) {
+    let doc: jsPDF | null = null;
+    for (const song of validSongs) {
+      const canvas = renderSongToCanvas(song);
+      const imgData = canvas.toDataURL('image/png');
+
+      if (!doc) {
+        doc = new jsPDF({
+          orientation: 'portrait',
+          unit: 'px',
+          format: [canvas.width, canvas.height]
+        });
+      } else {
+        doc.addPage([canvas.width, canvas.height], 'portrait');
+      }
+      doc.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
+    }
+    if (doc) {
+      doc.save(`${safeName}_batch.pdf`);
+    }
+    return;
+  }
+
   const doc = new jsPDF();
   let isFirstPage = true;
 
-  for (const song of songs) {
-    if (!song.lyrics || !song.lyrics.trim()) continue;
-
+  for (const song of validSongs) {
     if (!isFirstPage) {
       doc.addPage();
     }
