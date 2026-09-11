@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { splitLyricsToSlides, DEFAULT_STATE } from './presentationService';
 import { sanitizeFilename, hasIndicOrTamilScript } from './downloadService';
 import { LYRIC_BACKGROUND_THEMES, getBackgroundTheme, DEFAULT_BACKGROUND_THEME_ID } from '../data/backgroundThemes';
+import { getSuggestedSongNo } from '../components/SubmitSongDialog';
 
 describe('presentationService', () => {
   it('splits lyrics into slides by double linebreaks correctly', () => {
@@ -106,6 +107,51 @@ describe('downloadService helpers', () => {
     expect(hasIndicOrTamilScript('Song #101')).toBe(false);
     expect(hasIndicOrTamilScript('12345 !@#$%^&*()')).toBe(false);
     expect(hasIndicOrTamilScript('Song 12 - யேகோவா')).toBe(true);
+  });
+});
+
+describe('getSuggestedSongNo', () => {
+  it('suggests 1001 when there are no existing songs or list is empty', () => {
+    expect(getSuggestedSongNo([])).toBe(1001);
+    expect(getSuggestedSongNo(undefined)).toBe(1001);
+  });
+
+  it('suggests 1001 when all existing songs have numbers below 1000', () => {
+    const songs = [
+      { songNo: 1 },
+      { songNo: 50 },
+      { songNo: 540 },
+      { songNo: 999 }
+    ];
+    // Must never suggest below 1000; should start after 1000 at 1001
+    expect(getSuggestedSongNo(songs)).toBe(1001);
+  });
+
+  it('suggests the next number after highest existing song number above 1000', () => {
+    const songs = [
+      { songNo: 1001 },
+      { songNo: 1002 },
+      { songNo: 1003 }
+    ];
+    expect(getSuggestedSongNo(songs)).toBe(1004);
+  });
+
+  it('handles non-sequential numbers above 1000 and suggests max + 1', () => {
+    const songs = [
+      { songNo: 50 },
+      { songNo: 1000 },
+      { songNo: 1050 }
+    ];
+    expect(getSuggestedSongNo(songs)).toBe(1051);
+  });
+
+  it('handles string song numbers and null values safely', () => {
+    const songs = [
+      { songNo: '1020' as any },
+      { songNo: null as any },
+      { songNo: undefined as any }
+    ];
+    expect(getSuggestedSongNo(songs)).toBe(1021);
   });
 });
 

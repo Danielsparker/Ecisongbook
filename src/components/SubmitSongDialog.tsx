@@ -10,14 +10,49 @@ interface SubmitSongDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (song: { title: string; songNo: number; genre: string; lyrics: string }) => void;
+  suggestedSongNo?: number;
 }
 
-export function SubmitSongDialog({ isOpen, onClose, onSubmit }: SubmitSongDialogProps) {
+export function getSuggestedSongNo(songs?: Array<{ songNo?: number | string | null }>): number {
+  if (!songs || songs.length === 0) {
+    return 1001;
+  }
+
+  const validNumbers = songs
+    .map(s => (typeof s.songNo === 'number' ? s.songNo : parseInt(String(s.songNo), 10)))
+    .filter(n => !isNaN(n) && Number.isFinite(n) && n >= 1000);
+
+  if (validNumbers.length === 0) {
+    return 1001;
+  }
+
+  const maxNo = Math.max(...validNumbers);
+  return Math.max(1001, maxNo + 1);
+}
+
+export function SubmitSongDialog({ isOpen, onClose, onSubmit, suggestedSongNo = 1001 }: SubmitSongDialogProps) {
   const [title, setTitle] = useState('');
   const [songNo, setSongNo] = useState('');
   const [genre, setGenre] = useState('');
   const [lyrics, setLyrics] = useState('');
   const [honeypot, setHoneypot] = useState('');
+
+  // Automatically suggest a song number after 1000 (not below 1000) when opening
+  React.useEffect(() => {
+    if (isOpen) {
+      const defaultNo = suggestedSongNo && suggestedSongNo >= 1001 ? suggestedSongNo : 1001;
+      setSongNo(String(defaultNo));
+    }
+  }, [isOpen, suggestedSongNo]);
+
+  const handleCancel = () => {
+    setTitle('');
+    setSongNo(String(suggestedSongNo && suggestedSongNo >= 1001 ? suggestedSongNo : 1001));
+    setGenre('');
+    setLyrics('');
+    setHoneypot('');
+    onClose();
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,15 +75,21 @@ export function SubmitSongDialog({ isOpen, onClose, onSubmit }: SubmitSongDialog
       return;
     }
 
+    const parsedSongNo = parseInt(songNo, 10);
+    if (isNaN(parsedSongNo) || parsedSongNo <= 0) {
+      alert("Please enter a valid positive song number.");
+      return;
+    }
+
     onSubmit({
       title: cleanTitle,
-      songNo: parseInt(songNo, 10) || 0,
+      songNo: parsedSongNo,
       genre: genre.trim().slice(0, 100),
       lyrics: cleanLyrics
     });
     // Reset form
     setTitle('');
-    setSongNo('');
+    setSongNo(String(suggestedSongNo && suggestedSongNo >= 1001 ? suggestedSongNo : 1001));
     setGenre('');
     setLyrics('');
     setHoneypot('');
@@ -91,16 +132,34 @@ export function SubmitSongDialog({ isOpen, onClose, onSubmit }: SubmitSongDialog
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="songNo" className="dark:text-slate-300">Song Number</Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="songNo" className="dark:text-slate-300">Song Number</Label>
+                    <span className="text-[11px] font-semibold text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-950/60 px-2 py-0.5 rounded-full">
+                      Editable
+                    </span>
+                  </div>
                   <Input 
                     id="songNo" 
                     type="number" 
-                    placeholder="e.g. 101" 
+                    min="1"
+                    placeholder={`e.g. ${suggestedSongNo && suggestedSongNo >= 1001 ? suggestedSongNo : 1001}`} 
                     value={songNo}
                     onChange={(e) => setSongNo(e.target.value)}
                     required
-                    className="dark:bg-slate-900 dark:border-slate-800 dark:text-white"
+                    className="dark:bg-slate-900 dark:border-slate-800 dark:text-white font-mono"
                   />
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center justify-between">
+                    <span>Suggested after #1000 (editable)</span>
+                    {songNo !== String(suggestedSongNo && suggestedSongNo >= 1001 ? suggestedSongNo : 1001) && (
+                      <button
+                        type="button"
+                        onClick={() => setSongNo(String(suggestedSongNo && suggestedSongNo >= 1001 ? suggestedSongNo : 1001))}
+                        className="text-brand-600 hover:text-brand-700 dark:text-brand-400 font-medium underline text-[11px]"
+                      >
+                        Reset to #{suggestedSongNo && suggestedSongNo >= 1001 ? suggestedSongNo : 1001}
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="space-y-2">
@@ -128,7 +187,7 @@ export function SubmitSongDialog({ isOpen, onClose, onSubmit }: SubmitSongDialog
           </div>
           
           <DialogFooter className="p-6 pt-4 border-t bg-slate-50/50 dark:bg-slate-900/50 dark:border-slate-800 shrink-0">
-            <Button type="button" variant="ghost" onClick={onClose} className="dark:text-slate-400 dark:hover:text-white">Cancel</Button>
+            <Button type="button" variant="ghost" onClick={handleCancel} className="dark:text-slate-400 dark:hover:text-white">Cancel</Button>
             <Button type="submit" className="bg-brand-600 hover:bg-brand-700">Submit Song</Button>
           </DialogFooter>
         </form>

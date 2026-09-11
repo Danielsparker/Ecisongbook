@@ -17,7 +17,7 @@ import { SongCard } from './components/SongCard';
 import { BibleReader } from './components/BibleReader';
 import { PromiseVerseManager } from './components/PromiseVerseManager';
 import { LyricsModal } from './components/LyricsModal';
-import { SubmitSongDialog } from './components/SubmitSongDialog';
+import { SubmitSongDialog, getSuggestedSongNo } from './components/SubmitSongDialog';
 import { EditSongDialog } from './components/EditSongDialog';
 import { SettingsDialog } from './components/SettingsDialog';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -172,6 +172,10 @@ export default function App() {
       );
     });
   }, [songs, searchQuery]);
+
+  const suggestedSongNo = useMemo(() => {
+    return getSuggestedSongNo(songs);
+  }, [songs]);
 
   const handleSubmitSong = async (songData: { title: string; songNo: number; genre: string; lyrics: string }) => {
     if (!canSubmit) {
@@ -433,6 +437,7 @@ export default function App() {
           isOpen={isSubmitOpen} 
           onClose={() => setIsSubmitOpen(false)} 
           onSubmit={handleSubmitSong} 
+          suggestedSongNo={suggestedSongNo}
         />
 
         <EditSongDialog
