@@ -145,6 +145,16 @@ describe('getSuggestedSongNo', () => {
     expect(getSuggestedSongNo(songs)).toBe(1051);
   });
 
+  it('suggests 1024 when the last song number in the book is 1023', () => {
+    const songs = [
+      { songNo: 1 },
+      { songNo: 500 },
+      { songNo: 1001 },
+      { songNo: 1023 }
+    ];
+    expect(getSuggestedSongNo(songs)).toBe(1024);
+  });
+
   it('handles string song numbers and null values safely', () => {
     const songs = [
       { songNo: '1020' as any },

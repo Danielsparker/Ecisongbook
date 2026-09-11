@@ -11,43 +11,87 @@ interface SubmitSongDialogProps {
   onClose: () => void;
   onSubmit: (song: { title: string; songNo: number; genre: string; lyrics: string }) => void;
   suggestedSongNo?: number;
+  songs?: Array<any>;
 }
 
-export function getSuggestedSongNo(songs?: Array<{ songNo?: number | string | null }>): number {
+export function extractSongNumber(val: any): number | null {
+  if (val === null || val === undefined) return null;
+  if (typeof val === 'number' && Number.isFinite(val)) return val;
+  if (typeof val === 'string') {
+    const trimmed = val.trim();
+    const parsed = parseInt(trimmed, 10);
+    if (!isNaN(parsed) && Number.isFinite(parsed)) return parsed;
+    const match = trimmed.match(/\d+/);
+    if (match) {
+      const matchParsed = parseInt(match[0], 10);
+      if (!isNaN(matchParsed) && Number.isFinite(matchParsed)) return matchParsed;
+    }
+  }
+  return null;
+}
+
+export function getSuggestedSongNo(songs?: Array<any>): number {
   if (!songs || songs.length === 0) {
     return 1001;
   }
 
-  const validNumbers = songs
-    .map(s => (typeof s.songNo === 'number' ? s.songNo : parseInt(String(s.songNo), 10)))
-    .filter(n => !isNaN(n) && Number.isFinite(n) && n >= 1000);
+  const allNumbers: number[] = [];
+  for (const s of songs) {
+    if (!s) continue;
+    const candidates = [
+      s.songNo,
+      s.song_no,
+      s.number,
+      s.songNumber,
+      s.song_number,
+      s.no
+    ];
+    for (const cand of candidates) {
+      const num = extractSongNumber(cand);
+      if (num !== null) {
+        allNumbers.push(num);
+        break;
+      }
+    }
+  }
 
-  if (validNumbers.length === 0) {
+  if (allNumbers.length === 0) {
     return 1001;
   }
 
-  const maxNo = Math.max(...validNumbers);
-  return Math.max(1001, maxNo + 1);
+  const maxNo = Math.max(...allNumbers);
+  // Default is last song number in book + 1 (e.g. 1023 -> 1024), starting strictly after 1000
+  if (maxNo >= 1000) {
+    return maxNo + 1;
+  }
+  return 1001;
 }
 
-export function SubmitSongDialog({ isOpen, onClose, onSubmit, suggestedSongNo = 1001 }: SubmitSongDialogProps) {
+export function SubmitSongDialog({ isOpen, onClose, onSubmit, suggestedSongNo = 1001, songs }: SubmitSongDialogProps) {
   const [title, setTitle] = useState('');
   const [songNo, setSongNo] = useState('');
   const [genre, setGenre] = useState('');
   const [lyrics, setLyrics] = useState('');
   const [honeypot, setHoneypot] = useState('');
 
-  // Automatically suggest a song number after 1000 (not below 1000) when opening
+  // Calculate the effective suggested number
+  const effectiveSuggestedNo = React.useMemo(() => {
+    if (songs && songs.length > 0) {
+      return getSuggestedSongNo(songs);
+    }
+    return suggestedSongNo && suggestedSongNo >= 1001 ? suggestedSongNo : 1001;
+  }, [songs, suggestedSongNo]);
+
+  // Automatically suggest song number when opening
   React.useEffect(() => {
     if (isOpen) {
-      const defaultNo = suggestedSongNo && suggestedSongNo >= 1001 ? suggestedSongNo : 1001;
-      setSongNo(String(defaultNo));
+      setSongNo(String(effectiveSuggestedNo));
     }
-  }, [isOpen, suggestedSongNo]);
+  }, [isOpen, effectiveSuggestedNo]);
 
   const handleCancel = () => {
     setTitle('');
-    setSongNo(String(suggestedSongNo && suggestedSongNo >= 1001 ? suggestedSongNo : 1001));
+    setSongNo(String(effectiveSuggestedNo));
     setGenre('');
     setLyrics('');
     setHoneypot('');
@@ -89,7 +133,7 @@ export function SubmitSongDialog({ isOpen, onClose, onSubmit, suggestedSongNo = 
     });
     // Reset form
     setTitle('');
-    setSongNo(String(suggestedSongNo && suggestedSongNo >= 1001 ? suggestedSongNo : 1001));
+    setSongNo(String(effectiveSuggestedNo));
     setGenre('');
     setLyrics('');
     setHoneypot('');
@@ -142,21 +186,21 @@ export function SubmitSongDialog({ isOpen, onClose, onSubmit, suggestedSongNo = 
                     id="songNo" 
                     type="number" 
                     min="1"
-                    placeholder={`e.g. ${suggestedSongNo && suggestedSongNo >= 1001 ? suggestedSongNo : 1001}`} 
+                    placeholder={`e.g. ${effectiveSuggestedNo}`} 
                     value={songNo}
                     onChange={(e) => setSongNo(e.target.value)}
                     required
                     className="dark:bg-slate-900 dark:border-slate-800 dark:text-white font-mono"
                   />
                   <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center justify-between">
-                    <span>Suggested after #1000 (editable)</span>
-                    {songNo !== String(suggestedSongNo && suggestedSongNo >= 1001 ? suggestedSongNo : 1001) && (
+                    <span>Suggested: #{effectiveSuggestedNo} (editable)</span>
+                    {songNo !== String(effectiveSuggestedNo) && (
                       <button
                         type="button"
-                        onClick={() => setSongNo(String(suggestedSongNo && suggestedSongNo >= 1001 ? suggestedSongNo : 1001))}
+                        onClick={() => setSongNo(String(effectiveSuggestedNo))}
                         className="text-brand-600 hover:text-brand-700 dark:text-brand-400 font-medium underline text-[11px]"
                       >
-                        Reset to #{suggestedSongNo && suggestedSongNo >= 1001 ? suggestedSongNo : 1001}
+                        Reset to #{effectiveSuggestedNo}
                       </button>
                     )}
                   </div>

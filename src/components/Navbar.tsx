@@ -71,16 +71,16 @@ export function Navbar({
             )}
           </Button>
 
-          {/* Direct "Control Center" Button to open in new tab */}
+          {/* Direct "Control Center" Button */}
           <Button
             variant="outline"
             size="sm"
             onClick={onOpenStudio || (() => presenterManager.openPresenterControlTab())}
-            className="flex items-center gap-1.5 rounded-xl border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-900 cursor-pointer hidden md:inline-flex"
-            title="Open Presenter Control Center in New Tab"
+            className="flex items-center gap-1.5 rounded-xl border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-900 cursor-pointer"
+            title="Open Presenter Control Center"
           >
             <Sliders className="h-4 w-4 text-purple-500" />
-            <span className="font-medium">Control Center</span>
+            <span className="font-medium hidden sm:inline">Control Center</span>
           </Button>
 
           <Button 

@@ -76,28 +76,66 @@ export function PresentationWindow() {
     }, 3000);
 
     const handleFullscreenChange = () => {
-      setIsFullscreen(!!(document.fullscreenElement || (document as any).webkitFullscreenElement));
+      const isFull = !!(
+        document.fullscreenElement || 
+        (document as any).webkitFullscreenElement ||
+        (document as any).mozFullScreenElement ||
+        (document as any).msFullscreenElement ||
+        (window.innerHeight === screen.height && window.innerWidth === screen.width)
+      );
+      setIsFullscreen(isFull);
     };
 
-    const handleMessage = (e: MessageEvent) => {
-      if (e.data?.type === 'REQUEST_AUTO_FULLSCREEN') {
-        if (!document.fullscreenElement) {
-          enterFullscreen();
-        }
+    const attemptAutoFullscreen = () => {
+      const isAlreadyFull = !!(
+        document.fullscreenElement || 
+        (document as any).webkitFullscreenElement ||
+        (document as any).mozFullScreenElement ||
+        (document as any).msFullscreenElement ||
+        (window.innerHeight === screen.height && window.innerWidth === screen.width)
+      );
+      if (!isAlreadyFull) {
+        enterFullscreen().catch(() => {});
+      } else {
+        setIsFullscreen(true);
       }
     };
 
-    // Auto-enter fullscreen on first user interaction anywhere on the window
-    const handleFirstInteraction = () => {
-      if (!document.fullscreenElement && !(document as any).webkitFullscreenElement) {
-        enterFullscreen();
+    // Attempt auto-fullscreen immediately upon mounting and staggered
+    attemptAutoFullscreen();
+    const t1 = setTimeout(attemptAutoFullscreen, 100);
+    const t2 = setTimeout(attemptAutoFullscreen, 350);
+    const t3 = setTimeout(attemptAutoFullscreen, 800);
+    const t4 = setTimeout(attemptAutoFullscreen, 1600);
+
+    const handleMessage = (e: MessageEvent) => {
+      if (e.data?.type === 'REQUEST_AUTO_FULLSCREEN' || e.data?.action === 'REQUEST_AUTO_FULLSCREEN') {
+        attemptAutoFullscreen();
+      }
+    };
+
+    // Auto-enter fullscreen on any user interaction anywhere on the window
+    const handleUserInteraction = () => {
+      resetTimer();
+      attemptAutoFullscreen();
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      resetTimer();
+      if (e.key === 'f' || e.key === 'F') {
+        toggleFullscreen();
+      } else {
+        attemptAutoFullscreen();
       }
     };
 
     window.addEventListener('mousemove', resetTimer);
-    window.addEventListener('touchstart', resetTimer);
-    window.addEventListener('keydown', resetTimer);
-    window.addEventListener('click', handleFirstInteraction);
+    window.addEventListener('touchstart', handleUserInteraction, { passive: true });
+    window.addEventListener('pointerdown', handleUserInteraction);
+    window.addEventListener('click', handleUserInteraction);
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('focus', attemptAutoFullscreen);
+    window.addEventListener('load', attemptAutoFullscreen);
     window.addEventListener('dblclick', toggleFullscreen);
     window.addEventListener('message', handleMessage);
     document.addEventListener('fullscreenchange', handleFullscreenChange);
@@ -107,10 +145,17 @@ export function PresentationWindow() {
       if (hideTimerRef.current) {
         clearTimeout(hideTimerRef.current);
       }
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+      clearTimeout(t4);
       window.removeEventListener('mousemove', resetTimer);
-      window.removeEventListener('touchstart', resetTimer);
-      window.removeEventListener('keydown', resetTimer);
-      window.removeEventListener('click', handleFirstInteraction);
+      window.removeEventListener('touchstart', handleUserInteraction);
+      window.removeEventListener('pointerdown', handleUserInteraction);
+      window.removeEventListener('click', handleUserInteraction);
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('focus', attemptAutoFullscreen);
+      window.removeEventListener('load', attemptAutoFullscreen);
       window.removeEventListener('dblclick', toggleFullscreen);
       window.removeEventListener('message', handleMessage);
       document.removeEventListener('fullscreenchange', handleFullscreenChange);

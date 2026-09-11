@@ -24,7 +24,6 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { Button } from '@/components/ui/button';
 import { PresentationWindow } from './components/PresentationWindow';
 import { PresenterControl } from './components/PresenterControl';
-import { PresenterDock } from './components/PresenterDock';
 import { presenterManager } from './services/presenterManager';
 
 export default function App() {
@@ -38,14 +37,28 @@ export default function App() {
 
   const [user, loading] = useAuthState(auth);
   const [userRole, setUserRole] = useState<string | null>(null);
-  const [songs, setSongs] = useState<Song[]>([]);
+  const [songs, setSongs] = useState<Song[]>(() => {
+    try {
+      const cached = localStorage.getItem('eci_cached_songs');
+      return cached ? JSON.parse(cached) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+  const [isStudioOpen, setIsStudioOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'songs' | 'bible' | 'promiseVerse'>('songs');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSong, setSelectedSong] = useState<Song | null>(null);
   const [editingSong, setEditingSong] = useState<Song | null>(null);
   const [isSubmitOpen, setIsSubmitOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [isInitialLoading, setIsInitialLoading] = useState(() => {
+    try {
+      return !localStorage.getItem('eci_cached_songs');
+    } catch (e) {
+      return true;
+    }
+  });
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
   const [canvasTheme, setCanvasTheme] = useState<'light' | 'dark'>(() => (localStorage.getItem('eci_canvas_theme') as 'light' | 'dark') || 'dark');
@@ -129,6 +142,9 @@ export default function App() {
         ...doc.data()
       })) as Song[];
       setSongs(songsData);
+      try {
+        localStorage.setItem('eci_cached_songs', JSON.stringify(songsData));
+      } catch (e) {}
       setIsInitialLoading(false);
     }, (err) => {
       console.error("Firestore songs fetch error:", err);
@@ -204,11 +220,22 @@ export default function App() {
     }
   };
 
+  // Listen to popstate so back button smoothly exits Control Center
+  useEffect(() => {
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const mode = params.get('mode');
+      setIsStudioOpen(mode === 'control' || mode === 'presenter' || mode === 'studio');
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
   if (isPresentationMode) {
     return <PresentationWindow />;
   }
 
-  if (isPresenterControlMode) {
+  if (isPresenterControlMode || isStudioOpen) {
     const initialPresenterSong = urlSongId ? songs.find(s => s.id === urlSongId) : (selectedSong || songs[0] || null);
 
     return (
@@ -216,12 +243,19 @@ export default function App() {
         songs={songs} 
         initialActiveSong={initialPresenterSong || null} 
         onExit={() => {
+          setIsStudioOpen(false);
+          try {
+            if (window.location.search.includes('mode=')) {
+              const url = new URL(window.location.href);
+              url.searchParams.delete('mode');
+              url.searchParams.delete('songId');
+              const newSearch = url.searchParams.toString();
+              window.history.pushState({}, '', url.pathname + (newSearch ? `?${newSearch}` : ''));
+            }
+          } catch (e) {}
           try {
             window.close();
           } catch (e) {}
-          if (!window.closed) {
-            window.location.href = window.location.pathname;
-          }
         }} 
         isDarkMode={isDarkMode}
         canvasTheme={canvasTheme}
@@ -244,20 +278,28 @@ export default function App() {
     );
   }
 
-  const handleOpenStudioTab = (songId?: string) => {
-    presenterManager.openPresenterControlTab(songId);
+  const handleOpenStudio = (songId?: string) => {
+    setIsStudioOpen(true);
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('mode', 'control');
+      if (songId) {
+        url.searchParams.set('songId', songId);
+      }
+      window.history.pushState({}, '', url.toString());
+    } catch (e) {}
   };
 
   return (
     <ErrorBoundary>
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-28 transition-colors duration-300">
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-16 transition-colors duration-300">
         <Navbar 
           user={user} 
           onLogin={handleLogin} 
           onLogout={logout} 
           onAddSong={handleAddClick}
           onOpenSettings={() => setIsSettingsOpen(true)}
-          onOpenStudio={() => handleOpenStudioTab(selectedSong?.id)}
+          onOpenStudio={() => handleOpenStudio(selectedSong?.id)}
           canSubmit={canSubmit}
           isLoggingIn={isLoggingIn}
         />
@@ -438,6 +480,7 @@ export default function App() {
           onClose={() => setIsSubmitOpen(false)} 
           onSubmit={handleSubmitSong} 
           suggestedSongNo={suggestedSongNo}
+          songs={songs}
         />
 
         <EditSongDialog
@@ -464,9 +507,6 @@ export default function App() {
         >
           <Plus className="h-6 w-6" />
         </Button>
-
-        {/* Live Presentation Controller Dock on Primary Screen */}
-        <PresenterDock onOpenStudio={() => handleOpenStudioTab(selectedSong?.id)} />
       </div>
     </ErrorBoundary>
   );

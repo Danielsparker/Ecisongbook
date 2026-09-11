@@ -296,7 +296,7 @@ class PresenterWindowManager {
       top = Math.floor((window.screen.availHeight - height) / 2);
     }
 
-    const url = `${window.location.origin}${window.location.pathname}?mode=presentation`;
+    const url = `${window.location.origin}${window.location.pathname}?mode=presentation&autofullscreen=true`;
     const windowName = 'eci_presenter_view_window';
     const features = `popup=yes,fullscreen=yes,left=${left},top=${top},width=${width},height=${height},menubar=no,toolbar=no,location=no,status=no,directories=no,personalbar=no,resizable=yes,scrollbars=no`;
 
@@ -304,19 +304,34 @@ class PresenterWindowManager {
       const win = window.open(url, windowName, features);
       if (win) {
         this.presenterWindow = win;
-        win.focus();
+        try {
+          win.focus();
+        } catch (e) {}
         this.notifyWindowStatusListeners();
 
-        // If on extended screen, tell window to attempt fullscreen on readiness
-        if (targetScreen) {
+        // Attempt direct fullscreen within the current active user gesture stack
+        try {
+          if (win.document?.documentElement?.requestFullscreen) {
+            win.document.documentElement.requestFullscreen().catch(() => {});
+          }
+        } catch (e) {}
+
+        // Send staggered auto-fullscreen requests as the window initializes
+        const sendFullscreenSignal = () => {
           try {
-            win.addEventListener('load', () => {
-              try {
-                win.postMessage({ type: 'REQUEST_AUTO_FULLSCREEN' }, '*');
-              } catch (e) {}
-            });
+            win.postMessage({ type: 'REQUEST_AUTO_FULLSCREEN', action: 'REQUEST_AUTO_FULLSCREEN' }, '*');
           } catch (e) {}
-        }
+        };
+
+        sendFullscreenSignal();
+        setTimeout(sendFullscreenSignal, 100);
+        setTimeout(sendFullscreenSignal, 300);
+        setTimeout(sendFullscreenSignal, 700);
+        setTimeout(sendFullscreenSignal, 1500);
+
+        try {
+          win.addEventListener('load', sendFullscreenSignal);
+        } catch (e) {}
 
         return win;
       }
