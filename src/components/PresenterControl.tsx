@@ -211,6 +211,13 @@ export function PresenterControl({
     publishPresentationState(presState);
   }, [presState]);
 
+  // Keep activeSong in sync whenever initialActiveSong changes from parent
+  useEffect(() => {
+    if (initialActiveSong) {
+      setActiveSong(initialActiveSong);
+    }
+  }, [initialActiveSong]);
+
   // Load active song slides
   useEffect(() => {
     if (activeSong) {
@@ -224,14 +231,14 @@ export function PresenterControl({
         subtitle: activeSong.isExternal ? 'Tamil Christian World' : `Song #${activeSong.songNo}`,
         slides: slides,
         currentSlideIndex: 0,
-        activeType: 'song'
+        activeType: 'song',
+        isExited: false,
+        blackScreen: false,
       }));
-    } else if (initialActiveSong) {
-      setActiveSong(initialActiveSong);
     } else if (songs && songs.length > 0 && (!presState.slides || presState.slides.length === 0)) {
       setActiveSong(songs[0]);
     }
-  }, [activeSong, initialActiveSong, songs]);
+  }, [activeSong, songs]);
 
   // Handle global keydown events for slide controls and blackout
   useEffect(() => {

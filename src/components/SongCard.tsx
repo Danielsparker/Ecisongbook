@@ -15,7 +15,7 @@ interface SongCardProps {
 export function SongCard({ song, onView, onPresent, onEdit, onDelete }: SongCardProps) {
   return (
     <Card className="group overflow-hidden transition-all hover:shadow-md border-slate-200 dark:border-slate-800 dark:bg-slate-900/50">
-      <CardHeader className="pb-2">
+      <CardHeader className="pb-2 cursor-pointer" onClick={() => onPresent(song)}>
         <div className="flex justify-between items-start mb-1">
           <Badge variant="secondary" className="bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-400 border-brand-100 dark:border-brand-800 font-mono">
             #{song.songNo}
@@ -26,7 +26,7 @@ export function SongCard({ song, onView, onPresent, onEdit, onDelete }: SongCard
             </Badge>
           )}
         </div>
-        <CardTitle className="text-lg font-bold group-hover:text-brand-600 transition-colors line-clamp-1 dark:text-white">
+        <CardTitle className="text-lg font-bold group-hover:text-brand-600 transition-colors line-clamp-1 dark:text-white cursor-pointer hover:underline" title="Click to open in Control Center">
           {song.title}
         </CardTitle>
       </CardHeader>

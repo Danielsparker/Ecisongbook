@@ -85,7 +85,18 @@ export default function App() {
   };
 
   const handlePresentSong = (song: Song) => {
+    setExternalSong(null);
+    setSelectedSong(song);
     presenterManager.presentSong(song, true);
+    setIsStudioOpen(true);
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('mode', 'control');
+      if (song.id) {
+        url.searchParams.set('songId', song.id);
+      }
+      window.history.pushState({}, '', url.toString());
+    } catch (e) {}
   };
 
   const handlePresentExternalSong = (extSong: Song) => {
@@ -93,6 +104,14 @@ export default function App() {
     setSelectedSong(extSong);
     presenterManager.presentSong(extSong, true);
     setIsStudioOpen(true);
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('mode', 'control');
+      if (extSong.id) {
+        url.searchParams.set('songId', extSong.id);
+      }
+      window.history.pushState({}, '', url.toString());
+    } catch (e) {}
   };
 
   const handleUpdateSong = async (songId: string, updatedData: { title: string; songNo: number; genre: string; lyrics: string }) => {
@@ -246,7 +265,7 @@ export default function App() {
 
   if (isPresenterControlMode || isStudioOpen) {
     const allPresenterSongs = externalSong ? [externalSong, ...songs] : songs;
-    const initialPresenterSong = externalSong || (urlSongId ? songs.find(s => s.id === urlSongId) : (selectedSong || songs[0] || null));
+    const initialPresenterSong = selectedSong || externalSong || (urlSongId ? allPresenterSongs.find(s => s.id === urlSongId) : (allPresenterSongs[0] || null));
 
     return (
       <PresenterControl 

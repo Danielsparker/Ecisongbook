@@ -94,15 +94,16 @@ class TCWApiService {
       ? detail.album.title
       : (typeof detail.album === 'string' ? detail.album : '');
 
-    // Format lyrics with clean \n\n breaks if not already present
-    let normalizedLyrics = detail.lyrics?.ta?.trim() || '';
-
-    // If lyrics.ta is empty or lacks slide separation, reconstruct from sections
-    if (!normalizedLyrics && detail.sections && detail.sections.length > 0) {
+    // Format lyrics with clean \n\n breaks using structured sections first
+    let normalizedLyrics = '';
+    if (detail.sections && detail.sections.length > 0) {
       normalizedLyrics = detail.sections
-        .map(section => (section.ta || []).join('\n'))
+        .map(section => (section.ta || []).join('\n').trim())
         .filter(Boolean)
         .join('\n\n');
+    }
+    if (!normalizedLyrics && detail.lyrics?.ta) {
+      normalizedLyrics = detail.lyrics.ta.trim();
     }
 
     return {

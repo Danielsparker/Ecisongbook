@@ -12,7 +12,8 @@ import {
   Sparkles,
   ExternalLink,
   Layers,
-  Info
+  Info,
+  Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { TCWSongSummary, Song } from '../types';
@@ -55,6 +56,7 @@ export const DiscoverSongs: React.FC<DiscoverSongsProps> = ({
 
   // Selected song for details modal
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
+  const [loadingSlug, setLoadingSlug] = useState<string | null>(null);
 
   // Debounce search query
   useEffect(() => {
@@ -112,16 +114,16 @@ export const DiscoverSongs: React.FC<DiscoverSongsProps> = ({
     setPage(1);
   };
 
-  const handleQuickPresent = async (slug: string) => {
+  const handleSongClick = async (slug: string) => {
     try {
-      setLoading(true);
+      setLoadingSlug(slug);
       const detail = await tcwApiService.getSongDetail(slug);
       const normalized = tcwApiService.normalizeTCWSong(detail);
       onPresentSong(normalized);
     } catch (e: any) {
       alert(`Could not load lyrics for presentation: ${e.message}`);
     } finally {
-      setLoading(false);
+      setLoadingSlug(null);
     }
   };
 
@@ -337,16 +339,26 @@ export const DiscoverSongs: React.FC<DiscoverSongsProps> = ({
           {songs.map(song => (
             <div
               key={song.slug}
-              onClick={() => setSelectedSlug(song.slug)}
-              className="group relative p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-purple-400 dark:hover:border-purple-600 shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col justify-between"
+              onClick={() => handleSongClick(song.slug)}
+              className="group relative p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-purple-500 dark:hover:border-purple-500 shadow-sm hover:shadow-lg transition-all cursor-pointer flex flex-col justify-between"
             >
               <div className="space-y-2.5">
                 <div className="flex items-start justify-between gap-2">
                   <div className="space-y-1 flex-1">
-                    <span className="inline-block px-2 py-0.5 text-[10px] font-bold rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300">
-                      TCW
-                    </span>
-                    <h3 className="text-lg font-bold text-slate-900 dark:text-white font-tamil group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors line-clamp-1">
+                    <div className="flex items-center gap-2">
+                      <span className="inline-block px-2 py-0.5 text-[10px] font-bold rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300">
+                        TCW
+                      </span>
+                      {loadingSlug === song.slug && (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-purple-600 dark:text-purple-400 animate-pulse">
+                          <Loader2 className="w-3 h-3 animate-spin" /> Opening Control Center...
+                        </span>
+                      )}
+                    </div>
+                    <h3 
+                      className="text-lg font-bold text-slate-900 dark:text-white font-tamil group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors line-clamp-1 hover:underline"
+                      title="Click to present lyrics in Control Center"
+                    >
                       {song.title_ta}
                     </h3>
                     <p className="text-xs font-medium text-slate-500 dark:text-slate-400 capitalize line-clamp-1">
@@ -391,22 +403,27 @@ export const DiscoverSongs: React.FC<DiscoverSongsProps> = ({
                     e.stopPropagation();
                     setSelectedSlug(song.slug);
                   }}
-                  className="text-xs font-medium text-purple-600 dark:text-purple-400 hover:underline"
+                  className="text-xs font-medium text-slate-500 hover:text-purple-600 dark:hover:text-purple-400 hover:underline"
                 >
                   View Details & Chords
                 </button>
 
                 <Button
                   size="sm"
-                  variant="outline"
+                  variant="default"
+                  disabled={loadingSlug === song.slug}
                   onClick={e => {
                     e.stopPropagation();
-                    handleQuickPresent(song.slug);
+                    handleSongClick(song.slug);
                   }}
-                  className="rounded-xl h-8 px-3 text-xs gap-1 border-purple-200 dark:border-purple-800/60 hover:bg-purple-50 dark:hover:bg-purple-950/40 text-purple-700 dark:text-purple-300"
+                  className="rounded-xl h-8 px-3 text-xs gap-1 bg-purple-600 hover:bg-purple-700 text-white shadow-sm"
                 >
-                  <Tv className="w-3 h-3" />
-                  <span>Present</span>
+                  {loadingSlug === song.slug ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Tv className="w-3.5 h-3.5" />
+                  )}
+                  <span>{loadingSlug === song.slug ? 'Opening...' : 'Present'}</span>
                 </Button>
               </div>
             </div>
