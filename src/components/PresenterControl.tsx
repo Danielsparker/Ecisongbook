@@ -127,7 +127,7 @@ export function PresenterControl({
       return {
         ...baseState,
         title: initialActiveSong.title,
-        subtitle: `Song #${initialActiveSong.songNo}`,
+        subtitle: initialActiveSong.isExternal ? 'Tamil Christian World' : `Song #${initialActiveSong.songNo}`,
         slides: slides,
         currentSlideIndex: 0,
         activeType: 'song'
@@ -221,7 +221,7 @@ export function PresenterControl({
       setPresState(prev => ({
         ...prev,
         title: activeSong.title,
-        subtitle: `Song #${activeSong.songNo}`,
+        subtitle: activeSong.isExternal ? 'Tamil Christian World' : `Song #${activeSong.songNo}`,
         slides: slides,
         currentSlideIndex: 0,
         activeType: 'song'
@@ -274,8 +274,9 @@ export function PresenterControl({
     const lower = searchQuery.toLowerCase();
     return songs.filter(s => 
       s.title.toLowerCase().includes(lower) || 
-      s.genre.toLowerCase().includes(lower) || 
-      s.songNo.toString().includes(lower)
+      (s.genre && s.genre.toLowerCase().includes(lower)) || 
+      (s.songNo ? s.songNo.toString().includes(lower) : false) ||
+      (s.artist && s.artist.toLowerCase().includes(lower))
     );
   }, [songs, searchQuery]);
 
@@ -943,10 +944,11 @@ export function PresenterControl({
                 <div className="space-y-1.5 pr-2">
                   {filteredSongs.map((song) => (
                     <button
-                      key={song.id || song.songNo}
+                      key={song.id || (song.isExternal ? song.title : song.songNo)}
                       onClick={() => setActiveSong(song)}
                       className={`w-full text-left p-3 rounded-xl transition-all border ${
-                        activeSong?.songNo === song.songNo
+                        (activeSong?.id && song.id && activeSong.id === song.id) ||
+                        (activeSong?.songNo && song.songNo && activeSong.songNo === song.songNo)
                           ? isLightCanvas
                             ? 'bg-amber-50 border-amber-400 text-slate-900 shadow-sm font-medium'
                             : 'bg-brand-950/40 border-brand-500/50 text-white shadow-md'
@@ -957,11 +959,12 @@ export function PresenterControl({
                     >
                       <div className="flex justify-between items-start mb-0.5">
                         <span className={`text-xs font-mono font-bold ${
-                          activeSong?.songNo === song.songNo 
+                          (activeSong?.id && song.id && activeSong.id === song.id) ||
+                          (activeSong?.songNo && song.songNo && activeSong.songNo === song.songNo)
                             ? (isLightCanvas ? 'text-amber-700' : 'text-brand-400') 
                             : 'text-slate-500'
                         }`}>
-                          #{song.songNo}
+                          {song.isExternal ? 'TCW' : `#${song.songNo}`}
                         </span>
                         {song.genre && <span className="text-[10px] uppercase tracking-wider text-slate-400">{song.genre}</span>}
                       </div>

@@ -7,7 +7,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { collection, query, orderBy, onSnapshot, addDoc, updateDoc, deleteDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
-import { Music2, Loader2, Plus, BookOpen, Sparkles } from 'lucide-react';
+import { Music2, Loader2, Plus, BookOpen, Sparkles, Globe } from 'lucide-react';
 
 import { auth, db, loginWithGoogle, logout, handleFirestoreError, OperationType } from './lib/firebase';
 import { Song } from './types';
@@ -16,6 +16,7 @@ import { SongSearch } from './components/SongSearch';
 import { SongCard } from './components/SongCard';
 import { BibleReader } from './components/BibleReader';
 import { PromiseVerseManager } from './components/PromiseVerseManager';
+import { DiscoverSongs } from './components/DiscoverSongs';
 import { LyricsModal } from './components/LyricsModal';
 import { SubmitSongDialog, getSuggestedSongNo } from './components/SubmitSongDialog';
 import { EditSongDialog } from './components/EditSongDialog';
@@ -46,7 +47,8 @@ export default function App() {
     }
   });
   const [isStudioOpen, setIsStudioOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'songs' | 'bible' | 'promiseVerse'>('songs');
+  const [externalSong, setExternalSong] = useState<Song | null>(null);
+  const [activeTab, setActiveTab] = useState<'songs' | 'discover' | 'bible' | 'promiseVerse'>('songs');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSong, setSelectedSong] = useState<Song | null>(null);
   const [editingSong, setEditingSong] = useState<Song | null>(null);
@@ -84,6 +86,13 @@ export default function App() {
 
   const handlePresentSong = (song: Song) => {
     presenterManager.presentSong(song, true);
+  };
+
+  const handlePresentExternalSong = (extSong: Song) => {
+    setExternalSong(extSong);
+    setSelectedSong(extSong);
+    presenterManager.presentSong(extSong, true);
+    setIsStudioOpen(true);
   };
 
   const handleUpdateSong = async (songId: string, updatedData: { title: string; songNo: number; genre: string; lyrics: string }) => {
@@ -236,11 +245,12 @@ export default function App() {
   }
 
   if (isPresenterControlMode || isStudioOpen) {
-    const initialPresenterSong = urlSongId ? songs.find(s => s.id === urlSongId) : (selectedSong || songs[0] || null);
+    const allPresenterSongs = externalSong ? [externalSong, ...songs] : songs;
+    const initialPresenterSong = externalSong || (urlSongId ? songs.find(s => s.id === urlSongId) : (selectedSong || songs[0] || null));
 
     return (
       <PresenterControl 
-        songs={songs} 
+        songs={allPresenterSongs} 
         initialActiveSong={initialPresenterSong || null} 
         onExit={() => {
           setIsStudioOpen(false);
@@ -313,11 +323,13 @@ export default function App() {
               transition={{ duration: 0.5 }}
             >
               <h1 className="mb-4 text-3xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-6xl font-serif">
-                Every <span className="text-brand-600 italic">{activeTab === 'songs' ? 'Song' : 'Verse'}</span> Has a Story.
+                Every <span className="text-brand-600 italic">{activeTab === 'songs' ? 'Song' : activeTab === 'discover' ? 'Catalogue' : 'Verse'}</span> Has a Story.
               </h1>
               <p className="mx-auto mb-10 max-w-2xl text-lg text-slate-500 dark:text-slate-400">
                 {activeTab === 'songs' 
                   ? 'Explore thousands of lyrics, submit your own favorites, and download them as beautiful PDF or PPT presentations.'
+                  : activeTab === 'discover'
+                  ? 'Discover over 16,000+ Tamil Christian songs from Tamil Christian World, preview lyrics & chords, and present live.'
                   : 'Discover inspirational Bible verses and wisdom connected via Supabase.'}
               </p>
             </motion.div>
@@ -329,7 +341,7 @@ export default function App() {
               className="flex flex-col items-center gap-8"
             >
               {/* Tab Switcher */}
-              <div className="flex p-1 bg-slate-100 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-inner">
+              <div className="flex p-1 bg-slate-100 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-inner flex-wrap justify-center gap-1">
                 <button
                   onClick={() => setActiveTab('songs')}
                   className={`relative flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 ${
@@ -344,7 +356,24 @@ export default function App() {
                     />
                   )}
                   <Music2 className={`relative z-10 h-4 w-4 ${activeTab === 'songs' ? 'animate-pulse' : ''}`} />
-                  <span className="relative z-10">Songs</span>
+                  <span className="relative z-10">My Songbook</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('discover')}
+                  className={`relative flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 ${
+                    activeTab === 'discover' ? 'text-white' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300'
+                  }`}
+                >
+                  {activeTab === 'discover' && (
+                    <motion.div
+                      layoutId="active-tab"
+                      className="absolute inset-0 bg-purple-600 rounded-xl shadow-lg shadow-purple-500/20"
+                      transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                    />
+                  )}
+                  <Globe className={`relative z-10 h-4 w-4 ${activeTab === 'discover' ? 'animate-pulse' : ''}`} />
+                  <span className="relative z-10">Discover (16K+)</span>
                 </button>
 
                 <button
@@ -382,24 +411,28 @@ export default function App() {
                 </button>
               </div>
 
-              <SongSearch 
-                value={searchQuery} 
-                onChange={setSearchQuery} 
-                placeholder={activeTab === 'songs' ? "Search for songs, numbers or genre..." : "Browse Bible Chapters..."}
-              />
+              {activeTab !== 'discover' && (
+                <SongSearch 
+                  value={searchQuery} 
+                  onChange={setSearchQuery} 
+                  placeholder={activeTab === 'songs' ? "Search for songs, numbers or genre..." : "Browse Bible Chapters..."}
+                />
+              )}
             </motion.div>
           </section>
 
           {/* Grid Section */}
           <section>
-            <div className="mb-8 flex items-center justify-between">
-              <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
-                {searchQuery ? 'Search Results' : (activeTab === 'songs' ? 'Recent Songs' : activeTab === 'bible' ? 'Bible Database' : 'Promise Verse Wallpapers')}
-              </h2>
-              <span className="text-sm text-slate-500">
-                {activeTab === 'songs' ? `${filteredSongs.length} songs` : (activeTab === 'bible' ? 'Supabase Connected' : 'Monthly Wallpapers')}
-              </span>
-            </div>
+            {activeTab !== 'discover' && (
+              <div className="mb-8 flex items-center justify-between">
+                <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
+                  {searchQuery ? 'Search Results' : (activeTab === 'songs' ? 'Recent Songs' : activeTab === 'bible' ? 'Bible Database' : 'Promise Verse Wallpapers')}
+                </h2>
+                <span className="text-sm text-slate-500">
+                  {activeTab === 'songs' ? `${filteredSongs.length} songs` : (activeTab === 'bible' ? 'Supabase Connected' : 'Monthly Wallpapers')}
+                </span>
+              </div>
+            )}
 
             <AnimatePresence mode="wait">
               <motion.div
@@ -446,6 +479,11 @@ export default function App() {
                       </Button>
                     </div>
                   )
+                ) : activeTab === 'discover' ? (
+                  <DiscoverSongs 
+                    onPresentSong={handlePresentExternalSong} 
+                    isDarkMode={isDarkMode} 
+                  />
                 ) : activeTab === 'bible' ? (
                   <BibleReader />
                 ) : (
