@@ -1,7 +1,6 @@
-import { useState, useEffect } from 'react';
-import { Music, Plus, LogIn, LogOut, User, Settings, Loader2, Tv, Sliders } from 'lucide-react';
+import { Music, Plus, LogIn, LogOut, Settings, Loader2, Sliders } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { presenterManager, DisplayInfo } from '../services/presenterManager';
+import { presenterManager } from '../services/presenterManager';
 
 interface NavbarProps {
   user: any;
@@ -24,21 +23,6 @@ export function Navbar({
   canSubmit, 
   isLoggingIn 
 }: NavbarProps) {
-  const [displayInfo, setDisplayInfo] = useState<DisplayInfo>(presenterManager.getDisplayInfo());
-  const [isWindowOpen, setIsWindowOpen] = useState(presenterManager.isPresenterOpen());
-
-  useEffect(() => {
-    const unsubDisplay = presenterManager.onDisplayChange(setDisplayInfo);
-    const unsubWin = presenterManager.onWindowStatusChange(setIsWindowOpen);
-    return () => {
-      unsubDisplay();
-      unsubWin();
-    };
-  }, []);
-
-  const handleOpenPresenterView = () => {
-    presenterManager.openPresenterView();
-  };
 
   return (
     <nav className="sticky top-0 z-50 w-full border-b bg-white/80 dark:bg-slate-950/80 backdrop-blur-md">
@@ -56,21 +40,6 @@ export function Navbar({
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3">
-          {/* Quick "Present Song Lyrics" Direct Button */}
-          <Button
-            variant="default"
-            size="sm"
-            onClick={handleOpenPresenterView}
-            className="flex items-center gap-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white shadow-md shadow-brand-500/10 cursor-pointer"
-            title={displayInfo.isExtended ? "Launch Presenter View on External Monitor" : "Launch Presenter Window"}
-          >
-            <Tv className="h-4 w-4" />
-            <span className="font-medium hidden sm:inline">Present Song Lyrics</span>
-            {displayInfo.isExtended && (
-              <span className="hidden md:inline-flex text-[10px] px-1.5 py-0.2 rounded bg-brand-700 font-mono">2nd Display</span>
-            )}
-          </Button>
-
           {/* Direct "Control Center" Button */}
           <Button
             variant="outline"
