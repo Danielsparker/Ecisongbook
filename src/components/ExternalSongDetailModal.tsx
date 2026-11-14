@@ -90,13 +90,16 @@ export const ExternalSongDetailModal: React.FC<ExternalSongDetailModalProps> = (
     : (songDetail?.album || null);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200"
+      onClick={onClose}
+    >
       <div 
-        className="relative w-full max-w-3xl max-h-[90vh] flex flex-col rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden"
+        className="relative w-[96vw] max-w-5xl max-h-[92vh] flex flex-col rounded-2xl sm:rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-start justify-between gap-4 bg-slate-50/50 dark:bg-slate-900/50">
+        <div className="px-4 py-4 sm:px-8 sm:py-5 border-b border-slate-100 dark:border-slate-800 flex items-start justify-between gap-4 bg-slate-50/50 dark:bg-slate-900/50 shrink-0">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
@@ -127,7 +130,7 @@ export const ExternalSongDetailModal: React.FC<ExternalSongDetailModalProps> = (
         </div>
 
         {/* Content Body */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-8 space-y-6">
           {loading && (
             <div className="py-20 flex flex-col items-center justify-center space-y-4">
               <div className="w-10 h-10 border-4 border-purple-500 border-t-transparent rounded-full animate-spin" />
@@ -189,8 +192,8 @@ export const ExternalSongDetailModal: React.FC<ExternalSongDetailModalProps> = (
               </div>
 
               {/* View Tabs */}
-              <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
-                <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800 pb-3">
+                <div className="flex flex-wrap items-center gap-2">
                   <button
                     onClick={() => setActiveTab('tamil')}
                     className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
@@ -239,32 +242,27 @@ export const ExternalSongDetailModal: React.FC<ExternalSongDetailModalProps> = (
               </div>
 
               {/* Lyrics Content Display */}
-              <div className="bg-slate-50 dark:bg-slate-950/60 rounded-xl p-5 border border-slate-100 dark:border-slate-800/80">
+              <div className="bg-slate-50 dark:bg-slate-950/60 rounded-2xl p-4 sm:p-6 border border-slate-100 dark:border-slate-800/80">
                 {activeTab === 'tamil' && (
-                  <div className="space-y-4">
+                  <div className={songDetail.sections && songDetail.sections.length > 1 ? 'grid grid-cols-1 md:grid-cols-2 gap-4' : 'space-y-4'}>
                     {songDetail.sections && songDetail.sections.length > 0 ? (
                       songDetail.sections.map((section, idx) => (
                         <div 
                           key={section.index || idx}
-                          className="p-3 rounded-lg bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800/60 shadow-sm"
+                          className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800/60 shadow-sm"
                         >
-                          {section.number && (
-                            <span className="text-xs font-bold text-purple-600 dark:text-purple-400 block mb-1">
-                              Verse {section.number}
+                          <div className="flex items-center justify-between gap-2 mb-1.5">
+                            <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400">
+                              {section.is_refrain ? 'Chorus / Refrain' : section.number ? `Verse ${section.number}` : `Stanza ${idx + 1}`}
                             </span>
-                          )}
-                          {section.is_refrain && (
-                            <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 block mb-1">
-                              Chorus / Refrain
-                            </span>
-                          )}
-                          <p className="text-base sm:text-lg leading-relaxed text-slate-800 dark:text-slate-200 whitespace-pre-line font-tamil">
+                          </div>
+                          <p className="text-base sm:text-lg leading-relaxed text-slate-800 dark:text-slate-200 whitespace-pre-line break-words font-tamil">
                             {section.ta.join('\n')}
                           </p>
                         </div>
                       ))
                     ) : (
-                      <p className="text-base sm:text-lg leading-relaxed text-slate-800 dark:text-slate-200 whitespace-pre-line font-tamil">
+                      <p className="text-base sm:text-lg leading-relaxed text-slate-800 dark:text-slate-200 whitespace-pre-line break-words font-tamil">
                         {songDetail.lyrics.ta}
                       </p>
                     )}
@@ -301,7 +299,7 @@ export const ExternalSongDetailModal: React.FC<ExternalSongDetailModalProps> = (
         </div>
 
         {/* Footer Actions */}
-        <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/50">
+        <div className="px-4 py-4 sm:px-8 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-slate-50/50 dark:bg-slate-900/50 shrink-0">
           {songDetail?.url ? (
             <a
               href={songDetail.url}

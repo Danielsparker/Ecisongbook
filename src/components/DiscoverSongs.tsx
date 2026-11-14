@@ -13,7 +13,8 @@ import {
   ExternalLink,
   Layers,
   Info,
-  Loader2
+  Loader2,
+  FileText
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { TCWSongSummary, Song } from '../types';
@@ -396,19 +397,23 @@ export const DiscoverSongs: React.FC<DiscoverSongsProps> = ({
               </div>
 
               {/* Action Buttons */}
-              <div className="pt-4 mt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-2">
-                <button
+              <div className="pt-4 mt-3 border-t border-slate-100 dark:border-slate-800/80 flex flex-wrap sm:flex-nowrap items-center justify-between gap-2">
+                <Button
                   type="button"
+                  size="sm"
+                  variant="outline"
                   onClick={e => {
                     e.stopPropagation();
                     setSelectedSlug(song.slug);
                   }}
-                  className="text-xs font-medium text-slate-500 hover:text-purple-600 dark:hover:text-purple-400 hover:underline"
+                  className="rounded-xl h-8 px-3 text-xs gap-1.5 border-purple-200 dark:border-purple-800/70 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-950/50 flex-1 sm:flex-initial justify-center"
                 >
-                  View Details & Chords
-                </button>
+                  <FileText className="w-3.5 h-3.5 shrink-0" />
+                  <span>View Lyrics</span>
+                </Button>
 
                 <Button
+                  type="button"
                   size="sm"
                   variant="default"
                   disabled={loadingSlug === song.slug}
@@ -416,12 +421,12 @@ export const DiscoverSongs: React.FC<DiscoverSongsProps> = ({
                     e.stopPropagation();
                     handleSongClick(song.slug);
                   }}
-                  className="rounded-xl h-8 px-3 text-xs gap-1 bg-purple-600 hover:bg-purple-700 text-white shadow-sm"
+                  className="rounded-xl h-8 px-3 text-xs gap-1.5 bg-purple-600 hover:bg-purple-700 text-white shadow-sm flex-1 sm:flex-initial justify-center"
                 >
                   {loadingSlug === song.slug ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
                   ) : (
-                    <Tv className="w-3.5 h-3.5" />
+                    <Tv className="w-3.5 h-3.5 shrink-0" />
                   )}
                   <span>{loadingSlug === song.slug ? 'Opening...' : 'Present'}</span>
                 </Button>

@@ -48,6 +48,7 @@ export default function App() {
   });
   const [isStudioOpen, setIsStudioOpen] = useState(false);
   const [externalSong, setExternalSong] = useState<Song | null>(null);
+  const [presenterSong, setPresenterSong] = useState<Song | null>(null);
   const [activeTab, setActiveTab] = useState<'songs' | 'discover' | 'bible' | 'promiseVerse'>('songs');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSong, setSelectedSong] = useState<Song | null>(null);
@@ -85,8 +86,9 @@ export default function App() {
   };
 
   const handlePresentSong = (song: Song) => {
-    setExternalSong(null);
-    setSelectedSong(song);
+    setExternalSong(song.isExternal ? song : null);
+    setSelectedSong(null);
+    setPresenterSong(song);
     presenterManager.presentSong(song, true);
     setIsStudioOpen(true);
     try {
@@ -101,7 +103,8 @@ export default function App() {
 
   const handlePresentExternalSong = (extSong: Song) => {
     setExternalSong(extSong);
-    setSelectedSong(extSong);
+    setSelectedSong(null);
+    setPresenterSong(extSong);
     presenterManager.presentSong(extSong, true);
     setIsStudioOpen(true);
     try {
@@ -265,7 +268,10 @@ export default function App() {
 
   if (isPresenterControlMode || isStudioOpen) {
     const allPresenterSongs = externalSong ? [externalSong, ...songs] : songs;
-    const initialPresenterSong = selectedSong || externalSong || (urlSongId ? allPresenterSongs.find(s => s.id === urlSongId) : (allPresenterSongs[0] || null));
+    const initialPresenterSong =
+      presenterSong ||
+      externalSong ||
+      (urlSongId ? allPresenterSongs.find(s => s.id === urlSongId) : (selectedSong || allPresenterSongs[0] || null));
 
     return (
       <PresenterControl 
@@ -273,6 +279,7 @@ export default function App() {
         initialActiveSong={initialPresenterSong || null} 
         onExit={() => {
           setIsStudioOpen(false);
+          setPresenterSong(null);
           try {
             if (window.location.search.includes('mode=')) {
               const url = new URL(window.location.href);
@@ -328,7 +335,7 @@ export default function App() {
           onLogout={logout} 
           onAddSong={handleAddClick}
           onOpenSettings={() => setIsSettingsOpen(true)}
-          onOpenStudio={() => handleOpenStudio(selectedSong?.id)}
+          onOpenStudio={() => handleOpenStudio(presenterSong?.id || selectedSong?.id)}
           canSubmit={canSubmit}
           isLoggingIn={isLoggingIn}
         />

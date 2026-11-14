@@ -206,14 +206,77 @@ export function PresenterControl({
     return `${window.location.origin}${window.location.pathname}?mode=presentation`;
   }, []);
 
-  // Sync state initially and whenever changes are made
+  const isRemoteSyncRef = useRef(false);
+  const prevInitialSongKeyRef = useRef<string | null>(
+    initialActiveSong ? (initialActiveSong.id || `${initialActiveSong.songNo}-${initialActiveSong.title}`) : null
+  );
+
+  // Sync state initially and whenever local changes are made
   useEffect(() => {
+    if (isRemoteSyncRef.current) {
+      isRemoteSyncRef.current = false;
+      return;
+    }
     publishPresentationState(presState);
   }, [presState]);
 
-  // Keep activeSong in sync whenever initialActiveSong changes from parent
+  // Listen to BroadcastChannel / storage updates from projector window or other Control Center tabs
   useEffect(() => {
-    if (initialActiveSong) {
+    if (typeof window === 'undefined') return;
+    let bc: BroadcastChannel | null = null;
+    const applyRemote = (incoming: PresentationState | null) => {
+      if (!incoming || !Array.isArray(incoming.slides)) return;
+      setPresState(prev => {
+        if (
+          prev.title === incoming.title &&
+          prev.currentSlideIndex === incoming.currentSlideIndex &&
+          prev.blackScreen === incoming.blackScreen &&
+          prev.theme === incoming.theme &&
+          prev.backgroundThemeId === incoming.backgroundThemeId &&
+          prev.fontSize === incoming.fontSize &&
+          prev.fontFamily === incoming.fontFamily &&
+          prev.slides.length === incoming.slides.length &&
+          prev.slides[prev.currentSlideIndex] === incoming.slides[incoming.currentSlideIndex]
+        ) {
+          return prev;
+        }
+        isRemoteSyncRef.current = true;
+        return { ...prev, ...incoming };
+      });
+    };
+
+    try {
+      if ('BroadcastChannel' in window) {
+        bc = new BroadcastChannel('eci-presentation');
+        bc.onmessage = (event) => {
+          if (event.data) applyRemote(event.data);
+        };
+      }
+    } catch (e) {}
+
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'eci_presentation_state' && e.newValue) {
+        try {
+          applyRemote(JSON.parse(e.newValue));
+        } catch (err) {}
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+
+    return () => {
+      if (bc) {
+        try { bc.close(); } catch (e) {}
+      }
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, []);
+
+  // Keep activeSong in sync whenever initialActiveSong identity changes from parent
+  useEffect(() => {
+    if (!initialActiveSong) return;
+    const nextKey = initialActiveSong.id || `${initialActiveSong.songNo}-${initialActiveSong.title}`;
+    if (nextKey !== prevInitialSongKeyRef.current) {
+      prevInitialSongKeyRef.current = nextKey;
       setActiveSong(initialActiveSong);
     }
   }, [initialActiveSong]);
@@ -1164,7 +1227,7 @@ export function PresenterControl({
                 </div>
                 
                 <div 
-                  className={`flex-1 flex ${alignmentClass} py-2 px-4 ${presState.blackScreen ? 'opacity-0' : 'opacity-100'}`} 
+                  className={`flex-1 min-h-0 overflow-y-auto flex ${alignmentClass} py-2 px-4 ${presState.blackScreen ? 'opacity-0' : 'opacity-100'}`} 
                   style={{ transition: 'opacity 0.2s' }}
                 >
                   {presState.activeType === 'promiseVerse' && presState.promiseVerseUrl ? (
@@ -1176,19 +1239,25 @@ export function PresenterControl({
                         className="max-h-full max-w-full object-contain rounded-lg shadow-lg border border-slate-700/50" 
                       />
                     </div>
-                  ) : (
-                    <p 
-                      className={`${fontClass} italic max-w-xl break-words whitespace-pre-wrap leading-snug transition-all duration-200`}
-                      style={{ 
-                        fontSize: `${Math.max(14, Math.min(42, Math.round((presState.fontSize || 48) * 0.45)))}px`,
-                        fontWeight: fontWeightVal,
-                        color: monitorTextColor,
-                        textShadow: monitorShadow
-                      }}
-                    >
-                      {presState.slides[presState.currentSlideIndex] || '--- Screen Blank ---'}
-                    </p>
-                  )}
+                  ) : (() => {
+                    const currentSlideText = presState.slides[presState.currentSlideIndex] || '--- Screen Blank ---';
+                    const lineCount = currentSlideText.split('\n').length;
+                    const maxPreviewPx = lineCount >= 5 ? 20 : lineCount >= 4 ? 24 : 34;
+                    const scaledPx = Math.max(14, Math.min(maxPreviewPx, Math.round((presState.fontSize || 48) * 0.42)));
+                    return (
+                      <p 
+                        className={`${fontClass} italic max-w-2xl w-full break-words whitespace-pre-wrap leading-snug transition-all duration-200 my-auto`}
+                        style={{ 
+                          fontSize: `${scaledPx}px`,
+                          fontWeight: fontWeightVal,
+                          color: monitorTextColor,
+                          textShadow: monitorShadow
+                        }}
+                      >
+                        {currentSlideText}
+                      </p>
+                    );
+                  })()}
                 </div>
 
                 {presState.blackScreen && (
@@ -1223,7 +1292,7 @@ export function PresenterControl({
                 <button
                   key={idx}
                   onClick={() => handleSelectSlide(idx)}
-                  className={`relative p-4 rounded-xl text-left border transition-all h-28 flex flex-col justify-between overflow-hidden group ${
+                  className={`relative p-4 rounded-xl text-left border transition-all min-h-[7.5rem] h-auto flex flex-col justify-between gap-2 group ${
                     presState.currentSlideIndex === idx && !presState.blackScreen
                       ? isLightCanvas
                         ? 'bg-amber-100/90 border-amber-500 text-slate-950 ring-2 ring-amber-400/50 shadow-md font-semibold'
@@ -1233,19 +1302,19 @@ export function PresenterControl({
                         : 'bg-slate-900/60 border-slate-800 hover:border-slate-700 text-slate-300'
                   }`}
                 >
-                  <span className={`absolute top-2 right-3 text-[10px] font-bold font-mono ${
+                  <span className={`absolute top-2.5 right-3 text-[10px] font-bold font-mono ${
                     isLightCanvas ? 'text-slate-400' : 'text-slate-500 group-hover:text-slate-400'
                   }`}>
                     Slide {idx + 1}
                   </span>
                   
-                  <div className={`text-xs leading-relaxed line-clamp-3 ${fontClass} font-medium mt-3 whitespace-pre-wrap ${
+                  <div className={`text-xs sm:text-[13px] leading-relaxed ${fontClass} font-medium mt-3 pr-8 whitespace-pre-wrap break-words w-full ${
                     isLightCanvas ? 'text-slate-900 font-semibold' : ''
                   }`}>
                     {slide}
                   </div>
                   
-                  <div className={`mt-1 flex items-center gap-1.5 text-[9px] font-mono uppercase tracking-wider ${
+                  <div className={`mt-1 flex items-center gap-1.5 text-[9px] font-mono uppercase tracking-wider shrink-0 ${
                     isLightCanvas ? 'text-slate-500' : 'text-slate-500'
                   }`}>
                     <span className={`h-1.5 w-1.5 rounded-full ${isLightCanvas ? 'bg-amber-500' : 'bg-brand-500'}`} />
