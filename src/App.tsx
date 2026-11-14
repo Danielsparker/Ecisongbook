@@ -356,7 +356,9 @@ export default function App() {
                   ? 'Explore thousands of lyrics, submit your own favorites, and download them as beautiful PDF or PPT presentations.'
                   : activeTab === 'discover'
                   ? 'Discover over 16,000+ Tamil Christian songs from Tamil Christian World, preview lyrics & chords, and present live.'
-                  : 'Discover inspirational Bible verses and wisdom connected via Supabase.'}
+                  : activeTab === 'bible'
+                  ? 'Read, search, and present Tamil and English Scripture verses seamlessly during worship.'
+                  : 'Browse and project monthly promise verse wallpapers directly onto your church screen.'}
               </p>
             </motion.div>
 
@@ -454,9 +456,11 @@ export default function App() {
                 <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
                   {searchQuery ? 'Search Results' : (activeTab === 'songs' ? 'Recent Songs' : activeTab === 'bible' ? 'Bible Database' : 'Promise Verse Wallpapers')}
                 </h2>
-                <span className="text-sm text-slate-500">
-                  {activeTab === 'songs' ? `${filteredSongs.length} songs` : (activeTab === 'bible' ? 'Supabase Connected' : 'Monthly Wallpapers')}
-                </span>
+                {(activeTab === 'songs' || activeTab === 'promiseVerse') && (
+                  <span className="text-sm text-slate-500">
+                    {activeTab === 'songs' ? `${filteredSongs.length} songs` : 'Monthly Wallpapers'}
+                  </span>
+                )}
               </div>
             )}
 

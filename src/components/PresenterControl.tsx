@@ -33,8 +33,7 @@ import {
   Sparkles,
   AppWindow,
   Palette,
-  Shuffle,
-  ExternalLink
+  Shuffle
 } from 'lucide-react';
 import { Song, BibleVerse } from '../types';
 import { 
@@ -722,21 +721,6 @@ export function PresenterControl({
             title="Setup guide & instructions"
           >
             <HelpCircle className="h-5 w-5" />
-          </Button>
-
-          <Button 
-            onClick={() => presenterManager.openPresenterControlTab(activeSong?.id)} 
-            variant="ghost"
-            size="sm"
-            className={`gap-1.5 h-9 rounded-xl border transition-colors hidden sm:inline-flex ${
-              isLightCanvas 
-                ? 'text-slate-700 hover:text-slate-900 hover:bg-slate-200 border-slate-300' 
-                : 'text-slate-400 hover:text-white hover:bg-slate-800 border-slate-800'
-            }`}
-            title="Open Presenter Control Center in a separate browser tab"
-          >
-            <ExternalLink className="h-4 w-4" />
-            <span className="hidden md:inline">Pop Out</span>
           </Button>
 
           <Button 
