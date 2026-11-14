@@ -61,6 +61,12 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PresentationLiveMenu, PresentationMode } from './PresentationLiveMenu';
 import { FullScreenPresentation } from './FullScreenPresentation';
+import {
+  CopyrightNoticeModal,
+  CopyrightInfoIconButton,
+  ExternalCopyrightConsentDialog,
+  hasAcknowledgedExternalCopyright,
+} from './CopyrightNotice';
 
 interface PresenterControlProps {
   songs: Song[];
@@ -83,6 +89,9 @@ export function PresenterControl({
   const [promiseVerses, setPromiseVerses] = useState<any[]>([]);
   const [showPromiseVerseMenu, setShowPromiseVerseMenu] = useState(false);
   const [isFullScreenModalOpen, setIsFullScreenModalOpen] = useState(false);
+  const [showCopyrightModal, setShowCopyrightModal] = useState(false);
+  const [pendingConsentSong, setPendingConsentSong] = useState<Song | null>(null);
+  const [pendingLaunchMode, setPendingLaunchMode] = useState<PresentationMode | null>(null);
 
   // Fetch promise verses for quick presentation in left panel
   useEffect(() => {
@@ -424,7 +433,7 @@ export function PresenterControl({
     }));
   };
 
-  const handleSelectPresentationMode = async (mode: PresentationMode) => {
+  const launchPresentationMode = async (mode: PresentationMode) => {
     const activeState = { ...presState, isExited: false, blackScreen: false };
     setPresState(activeState);
     publishPresentationState(activeState);
@@ -435,6 +444,26 @@ export function PresenterControl({
     } else if (mode === 'fullscreen') {
       setIsFullScreenModalOpen(true);
     }
+  };
+
+  const handleSelectPresentationMode = async (mode: PresentationMode) => {
+    const isExternalActive = Boolean(activeSong?.isExternal || presState.subtitle === 'Tamil Christian World');
+    if (isExternalActive && !hasAcknowledgedExternalCopyright()) {
+      const targetSong: Song = activeSong || {
+        title: presState.title || 'External Song',
+        songNo: 0,
+        genre: 'Tamil Christian World',
+        lyrics: presState.slides.join('\n\n'),
+        submittedBy: 'Tamil Christian World',
+        createdAt: '',
+        isExternal: true,
+        source: 'Tamil Christian World',
+      };
+      setPendingLaunchMode(mode);
+      setPendingConsentSong(targetSong);
+      return;
+    }
+    await launchPresentationMode(mode);
   };
 
   const handleLaunchProjector = async () => {
@@ -999,7 +1028,14 @@ export function PresenterControl({
                   {filteredSongs.map((song) => (
                     <button
                       key={song.id || (song.isExternal ? song.title : song.songNo)}
-                      onClick={() => setActiveSong(song)}
+                      onClick={() => {
+                        if (song.isExternal && !hasAcknowledgedExternalCopyright()) {
+                          setPendingLaunchMode(null);
+                          setPendingConsentSong(song);
+                          return;
+                        }
+                        setActiveSong(song);
+                      }}
                       className={`w-full text-left p-3 rounded-xl transition-all border ${
                         (activeSong?.id && song.id && activeSong.id === song.id) ||
                         (activeSong?.songNo && song.songNo && activeSong.songNo === song.songNo)
@@ -1011,16 +1047,22 @@ export function PresenterControl({
                             : 'bg-slate-900/50 border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-900'
                       }`}
                     >
-                      <div className="flex justify-between items-start mb-0.5">
-                        <span className={`text-xs font-mono font-bold ${
-                          (activeSong?.id && song.id && activeSong.id === song.id) ||
-                          (activeSong?.songNo && song.songNo && activeSong.songNo === song.songNo)
-                            ? (isLightCanvas ? 'text-amber-700' : 'text-brand-400') 
-                            : 'text-slate-500'
-                        }`}>
-                          {song.isExternal ? 'TCW' : `#${song.songNo}`}
-                        </span>
-                        {song.genre && <span className="text-[10px] uppercase tracking-wider text-slate-400">{song.genre}</span>}
+                      <div className="flex justify-between items-start gap-2 mb-0.5">
+                        {song.isExternal ? (
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-500 dark:text-purple-400">
+                            External · TCW
+                          </span>
+                        ) : (
+                          <span className={`text-xs font-mono font-bold ${
+                            (activeSong?.id && song.id && activeSong.id === song.id) ||
+                            (activeSong?.songNo && song.songNo && activeSong.songNo === song.songNo)
+                              ? (isLightCanvas ? 'text-amber-700' : 'text-brand-400') 
+                              : 'text-slate-500'
+                          }`}>
+                            #{song.songNo}
+                          </span>
+                        )}
+                        {song.genre && <span className="text-[10px] uppercase tracking-wider text-slate-400 truncate">{song.genre}</span>}
                       </div>
                       <div className="font-semibold text-sm truncate">{song.title}</div>
                     </button>
@@ -1160,15 +1202,24 @@ export function PresenterControl({
           <div className={`flex justify-between items-center mb-4 shrink-0 p-3 rounded-xl border ${
             isLightCanvas ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/50 border-slate-800'
           }`}>
-            <div>
-              <span className={`text-[10px] font-bold font-mono uppercase tracking-widest ${
-                isLightCanvas ? 'text-brand-600' : 'text-brand-400'
-              }`}>
-                {presState.subtitle || 'Active'}
-              </span>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className={`text-[10px] font-bold font-mono uppercase tracking-widest ${
+                  activeSong?.isExternal || presState.subtitle === 'Tamil Christian World'
+                    ? 'text-purple-500 dark:text-purple-400'
+                    : isLightCanvas ? 'text-brand-600' : 'text-brand-400'
+                }`}>
+                  {activeSong?.isExternal || presState.subtitle === 'Tamil Christian World'
+                    ? `External · ${presState.subtitle || 'Tamil Christian World'}`
+                    : (presState.subtitle || 'Active')}
+                </span>
+                {(activeSong?.isExternal || presState.subtitle === 'Tamil Christian World') && (
+                  <CopyrightInfoIconButton onClick={() => setShowCopyrightModal(true)} />
+                )}
+              </div>
               <h2 className="text-base font-bold truncate max-w-sm">{presState.title || 'No song selected'}</h2>
             </div>
-            <div className="text-[10px] text-slate-400 font-mono">
+            <div className="text-[10px] text-slate-400 font-mono shrink-0">
               Slide {presState.slides.length > 0 ? presState.currentSlideIndex + 1 : 0} of {presState.slides.length}
             </div>
           </div>
@@ -1724,6 +1775,30 @@ export function PresenterControl({
         </section>
 
       </div>
+
+      <ExternalCopyrightConsentDialog
+        song={pendingConsentSong}
+        isOpen={!!pendingConsentSong}
+        onConfirm={async (song) => {
+          const mode = pendingLaunchMode;
+          setPendingConsentSong(null);
+          setPendingLaunchMode(null);
+          if (mode) {
+            await launchPresentationMode(mode);
+          } else {
+            setActiveSong(song);
+          }
+        }}
+        onCancel={() => {
+          setPendingConsentSong(null);
+          setPendingLaunchMode(null);
+        }}
+      />
+
+      <CopyrightNoticeModal
+        isOpen={showCopyrightModal}
+        onClose={() => setShowCopyrightModal(false)}
+      />
     </div>
   );
 }

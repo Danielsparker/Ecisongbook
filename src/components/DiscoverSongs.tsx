@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/button';
 import { TCWSongSummary, Song } from '../types';
 import { tcwApiService, TCWFilters } from '../services/tcwApiService';
 import { ExternalSongDetailModal } from './ExternalSongDetailModal';
+import { CopyrightNoticeModal, CopyrightInfoIconButton, SongSourceBadge } from './CopyrightNotice';
 
 interface DiscoverSongsProps {
   onPresentSong: (song: Song) => void;
@@ -58,6 +59,7 @@ export const DiscoverSongs: React.FC<DiscoverSongsProps> = ({
   // Selected song for details modal
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [loadingSlug, setLoadingSlug] = useState<string | null>(null);
+  const [showCopyrightModal, setShowCopyrightModal] = useState(false);
 
   // Debounce search query
   useEffect(() => {
@@ -346,10 +348,14 @@ export const DiscoverSongs: React.FC<DiscoverSongsProps> = ({
               <div className="space-y-2.5">
                 <div className="flex items-start justify-between gap-2">
                   <div className="space-y-1 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="inline-block px-2 py-0.5 text-[10px] font-bold rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300">
-                        TCW
-                      </span>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <SongSourceBadge isExternal />
+                      <CopyrightInfoIconButton
+                        onClick={e => {
+                          e.stopPropagation();
+                          setShowCopyrightModal(true);
+                        }}
+                      />
                       {loadingSlug === song.slug && (
                         <span className="inline-flex items-center gap-1 text-[11px] font-medium text-purple-600 dark:text-purple-400 animate-pulse">
                           <Loader2 className="w-3 h-3 animate-spin" /> Opening Control Center...
@@ -478,18 +484,27 @@ export const DiscoverSongs: React.FC<DiscoverSongsProps> = ({
         <div className="flex items-center gap-2">
           <Info className="w-4 h-4 text-purple-500 shrink-0" />
           <span>
-            External songs provided via public read-only access from <a href="https://tamilchristianworld.com" target="_blank" rel="noopener noreferrer" className="font-semibold text-purple-600 dark:text-purple-400 hover:underline">Tamil Christian World</a> for church worship service preparation.
+            External songs provided via public read-only access from <a href="https://tamilchristianworld.com" target="_blank" rel="noopener noreferrer" className="font-semibold text-purple-600 dark:text-purple-400 hover:underline">Tamil Christian World</a> for authorized church worship preparation.
           </span>
         </div>
-        <a 
-          href="https://tamilchristianworld.com/rights" 
-          target="_blank" 
-          rel="noopener noreferrer" 
-          className="text-slate-600 dark:text-slate-300 hover:underline shrink-0 font-medium flex items-center gap-1"
-        >
-          <span>Rights & Licensing Info</span>
-          <ExternalLink className="w-3 h-3" />
-        </a>
+        <div className="flex flex-wrap items-center justify-center gap-4 shrink-0">
+          <button
+            type="button"
+            onClick={() => setShowCopyrightModal(true)}
+            className="text-purple-600 dark:text-purple-400 hover:underline font-semibold cursor-pointer"
+          >
+            Copyright &amp; Licensing
+          </button>
+          <a 
+            href="https://tamilchristianworld.com/rights" 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            className="text-slate-600 dark:text-slate-300 hover:underline font-medium flex items-center gap-1"
+          >
+            <span>Rights &amp; Licensing Info</span>
+            <ExternalLink className="w-3 h-3" />
+          </a>
+        </div>
       </div>
 
       {/* Song Details Modal */}
@@ -504,6 +519,11 @@ export const DiscoverSongs: React.FC<DiscoverSongsProps> = ({
           isDarkMode={isDarkMode}
         />
       )}
+
+      <CopyrightNoticeModal
+        isOpen={showCopyrightModal}
+        onClose={() => setShowCopyrightModal(false)}
+      />
     </div>
   );
 };

@@ -44,9 +44,11 @@ const renderSongToCanvas = (song: Song): HTMLCanvasElement => {
   ctx.font = `bold 40px ${fontStack}`;
   const titleLines = wrapCanvasText(ctx, songTitle, width - padding * 2);
   
-  const metadataText = song.genre 
-    ? `Song #${song.songNo || ''}  |  Genre: ${song.genre}` 
-    : `Song #${song.songNo || ''}`;
+  const metadataText = song.isExternal
+    ? `External Source: ${song.source || 'Tamil Christian World'}  |  For authorized church use only (export does not grant rights)`
+    : song.genre
+      ? `Song #${song.songNo || ''}  |  Genre: ${song.genre}`
+      : `Song #${song.songNo || ''}`;
 
   ctx.font = `24px ${fontStack}`;
   const lyricsLines = wrapCanvasText(ctx, songLyrics, width - padding * 2);
@@ -165,7 +167,11 @@ export const downloadAsPDF = (song: Song) => {
   
   doc.setFontSize(12);
   doc.setTextColor(100);
-  const metadataText = song.genre ? `Song No: ${song.songNo || ''} | Genre: ${song.genre}` : `Song No: ${song.songNo || ''}`;
+  const metadataText = song.isExternal
+    ? `External Source: ${song.source || 'Tamil Christian World'} | Export does not grant reproduction rights`
+    : song.genre
+      ? `Song No: ${song.songNo || ''} | Genre: ${song.genre}`
+      : `Song No: ${song.songNo || ''}`;
   doc.text(metadataText, 20, 30);
   
   doc.setFontSize(14);
@@ -201,7 +207,11 @@ export const downloadAsPPT = (song: Song) => {
     fontFace: TAMIL_FONT_STACK
   });
 
-  const metadataText = song.genre ? `Song No: ${song.songNo || ''} | Genre: ${song.genre}` : `Song No: ${song.songNo || ''}`;
+  const metadataText = song.isExternal
+    ? `External Source: ${song.source || 'Tamil Christian World'} | Authorized Church Use Only`
+    : song.genre
+      ? `Song No: ${song.songNo || ''} | Genre: ${song.genre}`
+      : `Song No: ${song.songNo || ''}`;
   titleSlide.addText(metadataText, {
     x: 1,
     y: 3.5,

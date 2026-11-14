@@ -1,9 +1,16 @@
 import { useState } from 'react';
-import { FileText, Presentation, Pencil, Trash2, Copy, Check, ExternalLink } from 'lucide-react';
+import { FileText, Presentation, Pencil, Trash2, Copy, Check, ExternalLink, Info } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Song } from '../types';
 import { downloadAsPDF, downloadAsPPT } from '../services/downloadService';
+import {
+  CopyrightNoticeModal,
+  CopyrightInfoIconButton,
+  ExternalExportReminderDialog,
+  SongSourceBadge,
+  EXTERNAL_EXPORT_REMINDER_TEXT,
+} from './CopyrightNotice';
 
 interface LyricsModalProps {
   song: Song | null;
@@ -16,23 +23,37 @@ interface LyricsModalProps {
 
 export function LyricsModal({ song, isOpen, onClose, onPresent, onEdit, onDelete }: LyricsModalProps) {
   const [copied, setCopied] = useState(false);
+  const [showCopyrightModal, setShowCopyrightModal] = useState(false);
+  const [pendingExportFormat, setPendingExportFormat] = useState<'PDF' | 'PPT' | null>(null);
 
   if (!song) return null;
 
-  const handlePDFDownload = () => {
+  const performDownload = (format: 'PDF' | 'PPT') => {
     try {
-      downloadAsPDF(song);
+      if (format === 'PDF') {
+        downloadAsPDF(song);
+      } else {
+        downloadAsPPT(song);
+      }
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to export PDF');
+      alert(err instanceof Error ? err.message : `Failed to export ${format}`);
     }
   };
 
-  const handlePPTDownload = () => {
-    try {
-      downloadAsPPT(song);
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to export PPT');
+  const handlePDFDownload = () => {
+    if (song.isExternal) {
+      setPendingExportFormat('PDF');
+      return;
     }
+    performDownload('PDF');
+  };
+
+  const handlePPTDownload = () => {
+    if (song.isExternal) {
+      setPendingExportFormat('PPT');
+      return;
+    }
+    performDownload('PPT');
   };
 
   const handleCopy = () => {
@@ -75,9 +96,10 @@ export function LyricsModal({ song, isOpen, onClose, onPresent, onEdit, onDelete
           <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
             <div className="min-w-0 flex-1 space-y-1">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs font-mono font-bold text-brand-600 dark:text-brand-400 uppercase tracking-widest">
-                  {song.isExternal ? 'TCW' : `#${song.songNo}`}
-                </span>
+                <SongSourceBadge isExternal={song.isExternal} songNo={song.songNo} />
+                {song.isExternal && (
+                  <CopyrightInfoIconButton onClick={() => setShowCopyrightModal(true)} />
+                )}
                 {song.genre && (
                   <>
                     <span className="text-xs text-slate-400">•</span>
@@ -131,7 +153,13 @@ export function LyricsModal({ song, isOpen, onClose, onPresent, onEdit, onDelete
           </div>
         </DialogHeader>
         
-        <div className="flex-1 min-h-0 overflow-y-auto bg-slate-50/70 dark:bg-slate-900/50 p-4 sm:p-8">
+        <div className="flex-1 min-h-0 overflow-y-auto bg-slate-50/70 dark:bg-slate-900/50 p-4 sm:p-8 space-y-4">
+          {copied && song.isExternal && (
+            <div className="max-w-5xl mx-auto px-3.5 py-2.5 rounded-xl bg-purple-50/80 dark:bg-purple-950/30 border border-purple-200/70 dark:border-purple-900/50 text-xs text-purple-900 dark:text-purple-200 flex items-start gap-2">
+              <Info className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0 mt-0.5" />
+              <span>{EXTERNAL_EXPORT_REMINDER_TEXT}</span>
+            </div>
+          )}
           {stanzas.length > 1 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-5xl mx-auto">
               {stanzas.map((stanza, index) => (
@@ -173,28 +201,24 @@ export function LyricsModal({ song, isOpen, onClose, onPresent, onEdit, onDelete
             )}
           </div>
           <div className="flex flex-wrap items-center gap-2 justify-end">
-            {!song.isExternal && (
-              <>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="gap-2 rounded-xl border-slate-200 dark:border-slate-800"
-                  onClick={handlePDFDownload}
-                >
-                  <FileText className="h-4 w-4 text-red-500" />
-                  PDF
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="gap-2 rounded-xl border-slate-200 dark:border-slate-800"
-                  onClick={handlePPTDownload}
-                >
-                  <Presentation className="h-4 w-4 text-orange-500" />
-                  PPT
-                </Button>
-              </>
-            )}
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="gap-2 rounded-xl border-slate-200 dark:border-slate-800"
+              onClick={handlePDFDownload}
+            >
+              <FileText className="h-4 w-4 text-red-500" />
+              PDF
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="gap-2 rounded-xl border-slate-200 dark:border-slate-800"
+              onClick={handlePPTDownload}
+            >
+              <Presentation className="h-4 w-4 text-orange-500" />
+              PPT
+            </Button>
             <Button 
               variant="default" 
               size="sm" 
@@ -210,6 +234,25 @@ export function LyricsModal({ song, isOpen, onClose, onPresent, onEdit, onDelete
           </div>
         </div>
       </DialogContent>
+
+      <ExternalExportReminderDialog
+        isOpen={!!pendingExportFormat}
+        songTitle={song.title}
+        formatLabel={pendingExportFormat || 'PDF'}
+        onConfirm={() => {
+          if (pendingExportFormat) {
+            performDownload(pendingExportFormat);
+          }
+          setPendingExportFormat(null);
+        }}
+        onCancel={() => setPendingExportFormat(null)}
+      />
+
+      <CopyrightNoticeModal
+        isOpen={showCopyrightModal}
+        onClose={() => setShowCopyrightModal(false)}
+        sourceName={song.source || 'Tamil Christian World'}
+      />
     </Dialog>
   );
 }

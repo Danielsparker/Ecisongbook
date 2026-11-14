@@ -26,6 +26,8 @@ import { Button } from '@/components/ui/button';
 import { PresentationWindow } from './components/PresentationWindow';
 import { PresenterControl } from './components/PresenterControl';
 import { presenterManager } from './services/presenterManager';
+import { ExternalCopyrightConsentDialog, hasAcknowledgedExternalCopyright } from './components/CopyrightNotice';
+import { Footer } from './components/Footer';
 
 export default function App() {
   const urlParams = useMemo(() => new URLSearchParams(window.location.search), []);
@@ -55,6 +57,8 @@ export default function App() {
   const [editingSong, setEditingSong] = useState<Song | null>(null);
   const [isSubmitOpen, setIsSubmitOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [settingsInitialView, setSettingsInitialView] = useState<'main' | 'contributors' | 'copyright'>('main');
+  const [pendingExternalSong, setPendingExternalSong] = useState<Song | null>(null);
   const [isInitialLoading, setIsInitialLoading] = useState(() => {
     try {
       return !localStorage.getItem('eci_cached_songs');
@@ -85,7 +89,7 @@ export default function App() {
     setIsSubmitOpen(true);
   };
 
-  const handlePresentSong = (song: Song) => {
+  const launchSongInControlCenter = (song: Song) => {
     setExternalSong(song.isExternal ? song : null);
     setSelectedSong(null);
     setPresenterSong(song);
@@ -101,20 +105,20 @@ export default function App() {
     } catch (e) {}
   };
 
+  const handlePresentSong = (song: Song) => {
+    if (song.isExternal && !hasAcknowledgedExternalCopyright()) {
+      setPendingExternalSong(song);
+      return;
+    }
+    launchSongInControlCenter(song);
+  };
+
   const handlePresentExternalSong = (extSong: Song) => {
-    setExternalSong(extSong);
-    setSelectedSong(null);
-    setPresenterSong(extSong);
-    presenterManager.presentSong(extSong, true);
-    setIsStudioOpen(true);
-    try {
-      const url = new URL(window.location.href);
-      url.searchParams.set('mode', 'control');
-      if (extSong.id) {
-        url.searchParams.set('songId', extSong.id);
-      }
-      window.history.pushState({}, '', url.toString());
-    } catch (e) {}
+    if (!hasAcknowledgedExternalCopyright()) {
+      setPendingExternalSong(extSong);
+      return;
+    }
+    launchSongInControlCenter(extSong);
   };
 
   const handleUpdateSong = async (songId: string, updatedData: { title: string; songNo: number; genre: string; lyrics: string }) => {
@@ -328,19 +332,22 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-16 transition-colors duration-300">
+      <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
         <Navbar 
           user={user} 
           onLogin={handleLogin} 
           onLogout={logout} 
           onAddSong={handleAddClick}
-          onOpenSettings={() => setIsSettingsOpen(true)}
+          onOpenSettings={() => {
+            setSettingsInitialView('main');
+            setIsSettingsOpen(true);
+          }}
           onOpenStudio={() => handleOpenStudio(presenterSong?.id || selectedSong?.id)}
           canSubmit={canSubmit}
           isLoggingIn={isLoggingIn}
         />
 
-        <main className="container mx-auto px-4 py-12">
+        <main className="container mx-auto px-4 py-12 flex-1">
           {/* Hero Section */}
           <section className="mb-16 text-center">
             <motion.div
@@ -530,6 +537,23 @@ export default function App() {
           </section>
         </main>
 
+        <Footer
+          onNavigateTab={(tab) => {
+            setActiveTab(tab);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+          onOpenStudio={() => handleOpenStudio(presenterSong?.id || selectedSong?.id)}
+          onAddSong={handleAddClick}
+          onOpenCopyright={() => {
+            setSettingsInitialView('copyright');
+            setIsSettingsOpen(true);
+          }}
+          onOpenSettings={() => {
+            setSettingsInitialView('main');
+            setIsSettingsOpen(true);
+          }}
+        />
+
         {/* Modals */}
         <LyricsModal 
           song={selectedSong} 
@@ -565,6 +589,17 @@ export default function App() {
           isDarkMode={isDarkMode}
           toggleDarkMode={() => setIsDarkMode(!isDarkMode)}
           isAdmin={isAdmin}
+          initialView={settingsInitialView}
+        />
+
+        <ExternalCopyrightConsentDialog
+          song={pendingExternalSong}
+          isOpen={!!pendingExternalSong}
+          onConfirm={(song) => {
+            setPendingExternalSong(null);
+            launchSongInControlCenter(song);
+          }}
+          onCancel={() => setPendingExternalSong(null)}
         />
 
         {/* Floating Action Button for Mobile */}
