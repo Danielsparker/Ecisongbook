@@ -26,30 +26,53 @@ import { Button } from '@/components/ui/button';
 import { PresentationWindow } from './components/PresentationWindow';
 import { PresenterControl } from './components/PresenterControl';
 import { presenterManager } from './services/presenterManager';
+import { tcwApiService } from './services/tcwApiService';
 import { ExternalCopyrightConsentDialog, hasAcknowledgedExternalCopyright } from './components/CopyrightNotice';
 import { Footer } from './components/Footer';
 
+const SESSION_EXTERNAL_SONGS_KEY = 'eci_session_external_songs';
+
+const loadSessionExternalSongs = (): Song[] => {
+  try {
+    const raw = sessionStorage.getItem(SESSION_EXTERNAL_SONGS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((s): s is Song => Boolean(s && typeof s === 'object')) : [];
+  } catch {
+    return [];
+  }
+};
+
 export default function App() {
-  const urlParams = useMemo(() => new URLSearchParams(window.location.search), []);
-  const isPresentationMode = useMemo(() => urlParams.get('mode') === 'presentation', [urlParams]);
-  const isPresenterControlMode = useMemo(() => {
-    const mode = urlParams.get('mode');
-    return mode === 'control' || mode === 'presenter' || mode === 'studio';
-  }, [urlParams]);
-  const urlSongId = useMemo(() => urlParams.get('songId'), [urlParams]);
+  const getUrlModeParams = () => {
+    const params = new URLSearchParams(window.location.search);
+    const mode = params.get('mode');
+    return {
+      isPresentation: mode === 'presentation',
+      isControl: mode === 'control' || mode === 'presenter' || mode === 'studio',
+      songId: params.get('songId'),
+    };
+  };
+
+  const initialUrlState = useMemo(getUrlModeParams, []);
+  const isPresentationMode = initialUrlState.isPresentation;
+  const [isPresenterControlMode, setIsPresenterControlMode] = useState(initialUrlState.isControl);
+  const [urlSongId, setUrlSongId] = useState<string | null>(initialUrlState.songId);
 
   const [user, loading] = useAuthState(auth);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [songs, setSongs] = useState<Song[]>(() => {
     try {
       const cached = localStorage.getItem('eci_cached_songs');
-      return cached ? JSON.parse(cached) : [];
+      if (!cached) return [];
+      const parsed = JSON.parse(cached);
+      return Array.isArray(parsed) ? parsed.filter((s): s is Song => Boolean(s && typeof s === 'object')) : [];
     } catch (e) {
       return [];
     }
   });
   const [isStudioOpen, setIsStudioOpen] = useState(false);
-  const [externalSong, setExternalSong] = useState<Song | null>(null);
+  const [externalSongs, setExternalSongs] = useState<Song[]>(loadSessionExternalSongs);
   const [presenterSong, setPresenterSong] = useState<Song | null>(null);
   const [activeTab, setActiveTab] = useState<'songs' | 'discover' | 'bible' | 'promiseVerse'>('songs');
   const [searchQuery, setSearchQuery] = useState('');
@@ -67,8 +90,20 @@ export default function App() {
     }
   });
   const [isLoggingIn, setIsLoggingIn] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
-  const [canvasTheme, setCanvasTheme] = useState<'light' | 'dark'>(() => (localStorage.getItem('eci_canvas_theme') as 'light' | 'dark') || 'dark');
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    try {
+      return localStorage.getItem('theme') === 'dark';
+    } catch {
+      return false;
+    }
+  });
+  const [canvasTheme, setCanvasTheme] = useState<'light' | 'dark'>(() => {
+    try {
+      return (localStorage.getItem('eci_canvas_theme') as 'light' | 'dark') || 'dark';
+    } catch {
+      return 'dark';
+    }
+  });
   const [publicSubmissions, setPublicSubmissions] = useState(true);
 
   const isAdmin = useMemo(() => {
@@ -89,12 +124,29 @@ export default function App() {
     setIsSubmitOpen(true);
   };
 
+  const addExternalSongToSession = (song: Song) => {
+    setExternalSongs(prev => {
+      const filtered = prev.filter(s => (song.id ? s.id !== song.id : s.title !== song.title));
+      const next = [song, ...filtered].slice(0, 20);
+      try {
+        sessionStorage.setItem(SESSION_EXTERNAL_SONGS_KEY, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
   const launchSongInControlCenter = (song: Song) => {
-    setExternalSong(song.isExternal ? song : null);
+    if (song.isExternal) {
+      addExternalSongToSession(song);
+    }
     setSelectedSong(null);
     setPresenterSong(song);
     presenterManager.presentSong(song, true);
     setIsStudioOpen(true);
+    setIsPresenterControlMode(true);
+    if (song.id) {
+      setUrlSongId(song.id);
+    }
     try {
       const url = new URL(window.location.href);
       url.searchParams.set('mode', 'control');
@@ -183,7 +235,12 @@ export default function App() {
       setIsInitialLoading(false);
     }, (err) => {
       console.error("Firestore songs fetch error:", err);
-      handleFirestoreError(err, OperationType.LIST, 'songs');
+      setIsInitialLoading(false);
+      try {
+        handleFirestoreError(err, OperationType.LIST, 'songs');
+      } catch {
+        // Logged structured Firestore error without crashing the UI listener
+      }
     });
 
     // Listen to global settings
@@ -200,12 +257,16 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (isDarkMode) {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
+    try {
+      if (isDarkMode) {
+        document.documentElement.classList.add('dark');
+        localStorage.setItem('theme', 'dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+        localStorage.setItem('theme', 'light');
+      }
+    } catch {
+      // Ignore storage access errors in restricted iframes
     }
   }, [isDarkMode]);
 
@@ -255,44 +316,78 @@ export default function App() {
     }
   };
 
-  // Listen to popstate so back button smoothly exits Control Center
+  // Listen to popstate so browser Back/Forward smoothly enters or exits Control Center
   useEffect(() => {
     const handlePopState = () => {
-      const params = new URLSearchParams(window.location.search);
-      const mode = params.get('mode');
-      setIsStudioOpen(mode === 'control' || mode === 'presenter' || mode === 'studio');
+      const next = getUrlModeParams();
+      setIsPresenterControlMode(next.isControl);
+      setIsStudioOpen(next.isControl);
+      setUrlSongId(next.songId);
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
+
+  // Resolve external song if Control Center loads directly with ?songId=tcw-...
+  useEffect(() => {
+    if (!(isPresenterControlMode || isStudioOpen)) return;
+    if (!urlSongId || !urlSongId.startsWith('tcw-')) return;
+    const alreadyLoaded =
+      (presenterSong && presenterSong.id === urlSongId) ||
+      externalSongs.some(s => s.id === urlSongId);
+    if (alreadyLoaded) return;
+
+    const slug = urlSongId.slice(4);
+    if (!slug) return;
+    tcwApiService.getSongDetail(slug)
+      .then(detail => {
+        const normalized = tcwApiService.normalizeTCWSong(detail);
+        addExternalSongToSession(normalized);
+        setPresenterSong(normalized);
+      })
+      .catch(() => {});
+  }, [isPresenterControlMode, isStudioOpen, urlSongId]);
+
+  const navigateToHome = () => {
+    setIsStudioOpen(false);
+    setIsPresenterControlMode(false);
+    setPresenterSong(null);
+    setUrlSongId(null);
+    try {
+      if (window.location.search.includes('mode=') || window.location.search.includes('songId=')) {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('mode');
+        url.searchParams.delete('songId');
+        const newSearch = url.searchParams.toString();
+        window.history.pushState({}, '', url.pathname + (newSearch ? `?${newSearch}` : ''));
+      }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (e) {}
+  };
 
   if (isPresentationMode) {
     return <PresentationWindow />;
   }
 
   if (isPresenterControlMode || isStudioOpen) {
-    const allPresenterSongs = externalSong ? [externalSong, ...songs] : songs;
+    const mergedExternal = presenterSong?.isExternal
+      ? [presenterSong, ...externalSongs.filter(s => s.id !== presenterSong.id)]
+      : externalSongs;
+    const allPresenterSongs = [...mergedExternal, ...songs];
     const initialPresenterSong =
       presenterSong ||
-      externalSong ||
-      (urlSongId ? allPresenterSongs.find(s => s.id === urlSongId) : (selectedSong || allPresenterSongs[0] || null));
+      (urlSongId ? allPresenterSongs.find(s => s.id === urlSongId) : undefined) ||
+      selectedSong ||
+      allPresenterSongs[0] ||
+      null;
 
     return (
       <PresenterControl 
         songs={allPresenterSongs} 
-        initialActiveSong={initialPresenterSong || null} 
+        initialActiveSong={initialPresenterSong}
+        onGoHome={navigateToHome}
         onExit={() => {
-          setIsStudioOpen(false);
-          setPresenterSong(null);
-          try {
-            if (window.location.search.includes('mode=')) {
-              const url = new URL(window.location.href);
-              url.searchParams.delete('mode');
-              url.searchParams.delete('songId');
-              const newSearch = url.searchParams.toString();
-              window.history.pushState({}, '', url.pathname + (newSearch ? `?${newSearch}` : ''));
-            }
-          } catch (e) {}
+          navigateToHome();
           try {
             window.close();
           } catch (e) {}
@@ -301,7 +396,9 @@ export default function App() {
         canvasTheme={canvasTheme}
         onToggleCanvasTheme={(theme) => {
           setCanvasTheme(theme);
-          localStorage.setItem('eci_canvas_theme', theme);
+          try {
+            localStorage.setItem('eci_canvas_theme', theme);
+          } catch {}
         }}
       />
     );
@@ -320,6 +417,10 @@ export default function App() {
 
   const handleOpenStudio = (songId?: string) => {
     setIsStudioOpen(true);
+    setIsPresenterControlMode(true);
+    if (songId) {
+      setUrlSongId(songId);
+    }
     try {
       const url = new URL(window.location.href);
       url.searchParams.set('mode', 'control');

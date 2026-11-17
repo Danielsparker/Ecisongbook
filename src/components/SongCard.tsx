@@ -27,12 +27,12 @@ export function SongCard({ song, onView, onPresent, onEdit, onDelete }: SongCard
           )}
         </div>
         <CardTitle className="text-lg font-bold group-hover:text-brand-600 transition-colors line-clamp-1 dark:text-white cursor-pointer hover:underline" title="Click to open in Control Center">
-          {song.title}
+          {song.title || 'Untitled Song'}
         </CardTitle>
       </CardHeader>
       <CardContent className="pb-4">
         <p className="text-sm text-slate-500 dark:text-slate-400 line-clamp-3 font-serif italic">
-          {song.lyrics.substring(0, 120)}...
+          {(song.lyrics || '').substring(0, 120)}...
         </p>
       </CardContent>
       <CardFooter className="pt-0 flex gap-2">

@@ -231,15 +231,15 @@ export function PresentationWindow() {
 
     // Listen to updates via LocalStorage as robust cross-origin fallback
     const handleStorageChange = () => {
-      const saved = localStorage.getItem('eci_presentation_state');
-      if (saved) {
-        try {
+      try {
+        const saved = localStorage.getItem('eci_presentation_state');
+        if (saved) {
           const parsed = JSON.parse(saved);
           if (parsed) {
             setState(parsed);
           }
-        } catch (e) {}
-      }
+        }
+      } catch (e) {}
     };
 
     window.addEventListener('storage', handleStorageChange);

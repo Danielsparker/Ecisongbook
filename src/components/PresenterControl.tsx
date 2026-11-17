@@ -33,9 +33,12 @@ import {
   Sparkles,
   AppWindow,
   Palette,
-  Shuffle
+  Shuffle,
+  Home,
+  Globe,
+  Loader2
 } from 'lucide-react';
-import { Song, BibleVerse } from '../types';
+import { Song, BibleVerse, TCWSongSummary } from '../types';
 import { 
   getPresentationState, 
   publishPresentationState, 
@@ -48,6 +51,7 @@ import {
   PresentationState
 } from '../services/presentationService';
 import { presenterManager } from '../services/presenterManager';
+import { tcwApiService } from '../services/tcwApiService';
 import { 
   LYRIC_BACKGROUND_THEMES, 
   getBackgroundTheme, 
@@ -72,6 +76,7 @@ interface PresenterControlProps {
   songs: Song[];
   initialActiveSong: Song | null;
   onExit: () => void;
+  onGoHome?: () => void;
   isDarkMode?: boolean;
   canvasTheme?: 'light' | 'dark';
   onToggleCanvasTheme?: (theme: 'light' | 'dark') => void;
@@ -81,17 +86,33 @@ export function PresenterControl({
   songs, 
   initialActiveSong, 
   onExit, 
+  onGoHome,
   canvasTheme,
   onToggleCanvasTheme 
 }: PresenterControlProps) {
   const [activeSong, setActiveSong] = useState<Song | null>(initialActiveSong);
-  const [activeTab, setActiveTab] = useState<'songs' | 'bible' | 'promiseVerse'>('songs');
+  const [activeTab, setActiveTab] = useState<'songs' | 'discover' | 'bible' | 'promiseVerse'>('songs');
   const [promiseVerses, setPromiseVerses] = useState<any[]>([]);
   const [showPromiseVerseMenu, setShowPromiseVerseMenu] = useState(false);
   const [isFullScreenModalOpen, setIsFullScreenModalOpen] = useState(false);
   const [showCopyrightModal, setShowCopyrightModal] = useState(false);
   const [pendingConsentSong, setPendingConsentSong] = useState<Song | null>(null);
   const [pendingLaunchMode, setPendingLaunchMode] = useState<PresentationMode | null>(null);
+  const [sessionExternalSongs, setSessionExternalSongs] = useState<Song[]>(() => {
+    try {
+      const raw = sessionStorage.getItem('eci_session_external_songs');
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed.filter((s): s is Song => Boolean(s && typeof s === 'object')) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [externalResults, setExternalResults] = useState<TCWSongSummary[]>([]);
+  const [externalLoading, setExternalLoading] = useState(false);
+  const [externalError, setExternalError] = useState<string | null>(null);
+  const [loadingExternalSlug, setLoadingExternalSlug] = useState<string | null>(null);
+  const [externalRetryNonce, setExternalRetryNonce] = useState(0);
 
   // Fetch promise verses for quick presentation in left panel
   useEffect(() => {
@@ -102,6 +123,62 @@ export function PresenterControl({
     return () => unsub();
   }, []);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Load live external Tamil Christian World songs whenever External tab is open or search changes
+  useEffect(() => {
+    if (activeTab !== 'discover') return;
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      setExternalLoading(true);
+      setExternalError(null);
+      try {
+        const res = await tcwApiService.searchSongs(searchQuery.trim() || undefined, 1, 50);
+        if (!cancelled) {
+          setExternalResults(res.songs || []);
+        }
+      } catch (err: any) {
+        if (!cancelled) {
+          setExternalError(err?.message || 'Unable to load external songs');
+        }
+      } finally {
+        if (!cancelled) {
+          setExternalLoading(false);
+        }
+      }
+    }, searchQuery ? 350 : 0);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [activeTab, searchQuery, externalRetryNonce]);
+
+  const handleSelectExternalSummary = async (summary: TCWSongSummary) => {
+    try {
+      setLoadingExternalSlug(summary.slug);
+      const detail = await tcwApiService.getSongDetail(summary.slug);
+      const normalized = tcwApiService.normalizeTCWSong(detail);
+
+      setSessionExternalSongs(prev => {
+        const next = [normalized, ...prev.filter(s => s.id !== normalized.id)].slice(0, 20);
+        try {
+          sessionStorage.setItem('eci_session_external_songs', JSON.stringify(next));
+        } catch {}
+        return next;
+      });
+
+      if (!hasAcknowledgedExternalCopyright()) {
+        setPendingLaunchMode(null);
+        setPendingConsentSong(normalized);
+        return;
+      }
+      setActiveSong(normalized);
+    } catch (err: any) {
+      setExternalError(err?.message || 'Failed to load lyrics for selected external song');
+    } finally {
+      setLoadingExternalSlug(null);
+    }
+  };
 
   const handlePresentPromiseVerse = (pv: any) => {
     const updated: PresentationState = {
@@ -131,11 +208,11 @@ export function PresenterControl({
     };
     // If we have an initial active song, load it up!
     if (initialActiveSong) {
-      const slides = splitLyricsToSlides(initialActiveSong.lyrics);
+      const slides = splitLyricsToSlides(initialActiveSong.lyrics || '');
       return {
         ...baseState,
-        title: initialActiveSong.title,
-        subtitle: initialActiveSong.isExternal ? 'Tamil Christian World' : `Song #${initialActiveSong.songNo}`,
+        title: initialActiveSong.title || '',
+        subtitle: initialActiveSong.isExternal ? 'Tamil Christian World' : `Song #${initialActiveSong.songNo ?? ''}`,
         slides: slides,
         currentSlideIndex: 0,
         activeType: 'song'
@@ -144,11 +221,11 @@ export function PresenterControl({
     // If saved state has no slides and songs are available, auto-load the first song
     if ((!saved.slides || saved.slides.length === 0) && songs && songs.length > 0) {
       const firstSong = songs[0];
-      const slides = splitLyricsToSlides(firstSong.lyrics);
+      const slides = splitLyricsToSlides(firstSong?.lyrics || '');
       return {
         ...baseState,
-        title: firstSong.title,
-        subtitle: `Song #${firstSong.songNo}`,
+        title: firstSong?.title || '',
+        subtitle: `Song #${firstSong?.songNo ?? ''}`,
         slides: slides,
         currentSlideIndex: 0,
         activeType: 'song'
@@ -295,11 +372,11 @@ export function PresenterControl({
       if (activeSong.songNo === 0 && presState.activeType === 'promiseVerse') {
         return;
       }
-      const slides = splitLyricsToSlides(activeSong.lyrics);
+      const slides = splitLyricsToSlides(activeSong.lyrics || '');
       setPresState(prev => ({
         ...prev,
-        title: activeSong.title,
-        subtitle: activeSong.isExternal ? 'Tamil Christian World' : `Song #${activeSong.songNo}`,
+        title: activeSong.title || '',
+        subtitle: activeSong.isExternal ? 'Tamil Christian World' : `Song #${activeSong.songNo ?? ''}`,
         slides: slides,
         currentSlideIndex: 0,
         activeType: 'song',
@@ -346,17 +423,32 @@ export function PresenterControl({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [presState]);
 
+  // Merge parent songs with session external songs cleanly without duplicates
+  const combinedSongs = useMemo(() => {
+    const seenIds = new Set<string>();
+    const list: Song[] = [];
+    for (const s of [...sessionExternalSongs, ...songs]) {
+      const key = s.id || (s.isExternal ? `ext-${s.title}` : `no-${s.songNo}-${s.title}`);
+      if (!seenIds.has(key)) {
+        seenIds.add(key);
+        list.push(s);
+      }
+    }
+    return list;
+  }, [sessionExternalSongs, songs]);
+
   // Filter songs
   const filteredSongs = useMemo(() => {
-    if (!searchQuery) return songs;
+    if (!searchQuery) return combinedSongs;
     const lower = searchQuery.toLowerCase();
-    return songs.filter(s => 
-      s.title.toLowerCase().includes(lower) || 
+    return combinedSongs.filter(s => 
+      (s.title || '').toLowerCase().includes(lower) || 
+      (s.transliteration && s.transliteration.toLowerCase().includes(lower)) ||
       (s.genre && s.genre.toLowerCase().includes(lower)) || 
-      (s.songNo ? s.songNo.toString().includes(lower) : false) ||
+      (s.songNo !== undefined && s.songNo !== null ? s.songNo.toString().includes(lower) : false) ||
       (s.artist && s.artist.toLowerCase().includes(lower))
     );
-  }, [songs, searchQuery]);
+  }, [combinedSongs, searchQuery]);
 
   // Slide navigation
   const handleSelectSlide = (index: number) => {
@@ -476,6 +568,15 @@ export function PresenterControl({
     onExit();
   };
 
+  const handleGoHome = () => {
+    presenterManager.endPresentation(false);
+    if (onGoHome) {
+      onGoHome();
+    } else {
+      onExit();
+    }
+  };
+
   const toggleProjectorFullscreen = async () => {
     // If window is open, focus and request fullscreen
     if (projectorWindow && !projectorWindow.closed) {
@@ -539,10 +640,26 @@ export function PresenterControl({
       )}
 
       {/* Header Bar */}
-      <header className={`flex justify-between items-center border-b pb-4 mb-4 shrink-0 transition-colors ${
+      <header className={`flex flex-wrap justify-between items-center gap-3 border-b pb-4 mb-4 shrink-0 transition-colors ${
         isLightCanvas ? 'border-slate-300' : 'border-slate-800'
       }`}>
         <div className="flex items-center gap-3">
+          <Button
+            type="button"
+            onClick={handleGoHome}
+            variant="ghost"
+            size="sm"
+            title="Go to Home Page"
+            aria-label="Go to Home Page"
+            className={`gap-1.5 h-9 px-2.5 rounded-xl border transition-colors cursor-pointer ${
+              isLightCanvas
+                ? 'bg-white hover:bg-slate-200 text-slate-700 border-slate-300 shadow-sm'
+                : 'bg-slate-900 hover:bg-slate-800 text-slate-200 border-slate-700 hover:text-white'
+            }`}
+          >
+            <Home className="h-4 w-4 text-brand-500" />
+            <span className="hidden sm:inline text-xs font-semibold">Home</span>
+          </Button>
           <Tv className={`h-6 w-6 animate-pulse ${isLightCanvas ? 'text-brand-600' : 'text-brand-400'}`} />
           <div>
             <h1 className={`text-xl font-bold tracking-tight flex items-center gap-2 ${
@@ -972,7 +1089,7 @@ export function PresenterControl({
             <Search className={`absolute left-3 top-2.5 h-4 w-4 ${isLightCanvas ? 'text-slate-400' : 'text-slate-500'}`} />
             <input 
               type="text" 
-              placeholder="Filter songs by title/no..." 
+              placeholder={activeTab === 'discover' ? 'Search 16,000+ external songs (Tamil/Eng)...' : 'Filter songs by title/no...'} 
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className={`w-full border rounded-xl py-2 pl-9 pr-4 text-sm focus:outline-none focus:border-brand-500 transition-colors ${
@@ -984,50 +1101,61 @@ export function PresenterControl({
           </div>
 
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full flex-1 flex flex-col overflow-hidden">
-            <TabsList className={`border p-1 rounded-xl grid grid-cols-3 mb-3 ${
+            <TabsList className={`border p-1 rounded-xl grid grid-cols-4 mb-3 ${
               isLightCanvas ? 'bg-slate-100 border-slate-200' : 'bg-slate-900 border-slate-800'
             }`}>
               <TabsTrigger 
                 value="songs" 
-                className={`rounded-lg text-xs font-semibold py-1.5 transition-all ${
+                className={`rounded-lg text-[11px] font-semibold py-1.5 px-1 transition-all ${
                   activeTab === 'songs' 
                     ? '!bg-brand-600 !text-white shadow-sm' 
                     : isLightCanvas ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
-                <Music className="h-3 w-3 mr-1" />
-                Songs
+                <Music className="h-3 w-3 mr-1 shrink-0" />
+                <span className="truncate">Songs</span>
+              </TabsTrigger>
+              <TabsTrigger 
+                value="discover" 
+                className={`rounded-lg text-[11px] font-semibold py-1.5 px-1 transition-all ${
+                  activeTab === 'discover' 
+                    ? '!bg-purple-600 !text-white shadow-sm' 
+                    : isLightCanvas ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Globe className="h-3 w-3 mr-1 shrink-0" />
+                <span className="truncate">External</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="bible" 
-                className={`rounded-lg text-xs font-semibold py-1.5 transition-all ${
+                className={`rounded-lg text-[11px] font-semibold py-1.5 px-1 transition-all ${
                   activeTab === 'bible' 
                     ? '!bg-brand-600 !text-white shadow-sm' 
                     : isLightCanvas ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
-                <BookOpen className="h-3 w-3 mr-1" />
-                Bible
+                <BookOpen className="h-3 w-3 mr-1 shrink-0" />
+                <span className="truncate">Bible</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="promiseVerse" 
-                className={`rounded-lg text-xs font-semibold py-1.5 transition-all ${
+                className={`rounded-lg text-[11px] font-semibold py-1.5 px-1 transition-all ${
                   activeTab === 'promiseVerse' 
                     ? '!bg-amber-600 !text-white shadow-sm' 
                     : isLightCanvas ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
-                <Sparkles className="h-3 w-3 mr-1" />
-                Promise
+                <Sparkles className="h-3 w-3 mr-1 shrink-0" />
+                <span className="truncate">Promise</span>
               </TabsTrigger>
             </TabsList>
 
             <TabsContent value="songs" className="flex-1 overflow-hidden m-0">
               <ScrollArea className="h-full">
                 <div className="space-y-1.5 pr-2">
-                  {filteredSongs.map((song) => (
+                  {filteredSongs.map((song, idx) => (
                     <button
-                      key={song.id || (song.isExternal ? song.title : song.songNo)}
+                      key={song.id || `${song.isExternal ? 'ext' : 'eci'}-${song.songNo ?? idx}-${song.title || idx}`}
                       onClick={() => {
                         if (song.isExternal && !hasAcknowledgedExternalCopyright()) {
                           setPendingLaunchMode(null);
@@ -1068,7 +1196,96 @@ export function PresenterControl({
                     </button>
                   ))}
                   {filteredSongs.length === 0 && (
-                    <div className="text-center py-8 text-xs text-slate-400">No matching songs found</div>
+                    <div className="text-center py-8 space-y-2">
+                      <div className="text-xs text-slate-400">No matching songs in My Songbook</div>
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('discover')}
+                    className={`w-full mt-2 p-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
+                      isLightCanvas
+                        ? 'bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100'
+                        : 'bg-purple-950/30 border-purple-800/60 text-purple-300 hover:bg-purple-900/40'
+                    }`}
+                  >
+                    <Globe className="h-3.5 w-3.5" />
+                    <span>
+                      {searchQuery
+                        ? `Search "${searchQuery}" in External Songs (TCW)`
+                        : 'Browse External Songs (16,000+ TCW)'}
+                    </span>
+                  </button>
+                </div>
+              </ScrollArea>
+            </TabsContent>
+
+            <TabsContent value="discover" className="flex-1 overflow-hidden m-0">
+              <ScrollArea className="h-full">
+                <div className="space-y-1.5 pr-2">
+                  {externalLoading && (
+                    <div className="flex items-center justify-center gap-2 py-8 text-xs text-purple-400">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span>Loading external songs...</span>
+                    </div>
+                  )}
+                  {!externalLoading && externalError && (
+                    <div className="p-3 rounded-xl border border-red-500/30 bg-red-500/10 text-xs text-red-400 text-center space-y-2">
+                      <p>{externalError}</p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setExternalError(null);
+                          setExternalRetryNonce(n => n + 1);
+                        }}
+                        className="underline font-semibold"
+                      >
+                        Try refreshing
+                      </button>
+                    </div>
+                  )}
+                  {!externalLoading && !externalError && externalResults.map((item) => {
+                    const isSelected = activeSong?.id === `tcw-${item.slug}`;
+                    const isFetching = loadingExternalSlug === item.slug;
+                    return (
+                      <button
+                        key={item.slug}
+                        type="button"
+                        disabled={isFetching}
+                        onClick={() => handleSelectExternalSummary(item)}
+                        className={`w-full text-left p-3 rounded-xl transition-all border ${
+                          isSelected
+                            ? isLightCanvas
+                              ? 'bg-purple-50 border-purple-400 text-slate-900 shadow-sm font-medium'
+                              : 'bg-purple-950/40 border-purple-500/60 text-white shadow-md'
+                            : isLightCanvas
+                              ? 'bg-slate-50 border-slate-200 text-slate-700 hover:text-slate-950 hover:bg-slate-100'
+                              : 'bg-slate-900/50 border-transparent text-slate-300 hover:text-white hover:bg-slate-900'
+                        }`}
+                      >
+                        <div className="flex justify-between items-center gap-2 mb-0.5">
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-500 dark:text-purple-400">
+                            External · TCW
+                          </span>
+                          {isFetching ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] text-purple-400">
+                              <Loader2 className="h-3 w-3 animate-spin" /> Loading...
+                            </span>
+                          ) : item.artist ? (
+                            <span className="text-[10px] text-slate-400 truncate max-w-[110px]">{item.artist}</span>
+                          ) : null}
+                        </div>
+                        <div className="font-semibold text-sm truncate font-tamil">{item.title_ta}</div>
+                        {item.title_en && (
+                          <div className="text-[11px] text-slate-400 truncate capitalize">{item.title_en}</div>
+                        )}
+                      </button>
+                    );
+                  })}
+                  {!externalLoading && !externalError && externalResults.length === 0 && (
+                    <div className="text-center py-8 text-xs text-slate-400">
+                      No external songs found. Try a Tamil or English keyword above.
+                    </div>
                   )}
                 </div>
               </ScrollArea>

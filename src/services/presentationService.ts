@@ -120,7 +120,9 @@ export function publishPresentationState(state: PresentationState) {
   if (typeof window === 'undefined') return;
 
   // Save to localStorage so if the presentation window is refreshed, it recovers state
-  localStorage.setItem('eci_presentation_state', JSON.stringify(state));
+  try {
+    localStorage.setItem('eci_presentation_state', JSON.stringify(state));
+  } catch (e) {}
 
   // Send via BroadcastChannel for real-time performance
   if (broadcastChannel) {
@@ -163,11 +165,22 @@ export function clearPresentationState() {
  */
 export function getPresentationState(): PresentationState {
   if (typeof window === 'undefined') return DEFAULT_STATE;
-  const raw = localStorage.getItem('eci_presentation_state');
-  if (!raw) return DEFAULT_STATE;
   try {
+    const raw = localStorage.getItem('eci_presentation_state');
+    if (!raw) return DEFAULT_STATE;
     const parsed = JSON.parse(raw);
-    return { ...DEFAULT_STATE, ...parsed };
+    if (!parsed || typeof parsed !== 'object') return DEFAULT_STATE;
+    const slides = Array.isArray(parsed.slides) ? parsed.slides : [];
+    const rawIdx = typeof parsed.currentSlideIndex === 'number' && Number.isFinite(parsed.currentSlideIndex)
+      ? parsed.currentSlideIndex
+      : 0;
+    const currentSlideIndex = slides.length > 0 ? Math.min(Math.max(0, rawIdx), slides.length - 1) : 0;
+    return {
+      ...DEFAULT_STATE,
+      ...parsed,
+      slides,
+      currentSlideIndex,
+    };
   } catch (e) {
     return DEFAULT_STATE;
   }
@@ -214,14 +227,16 @@ export function openWindowedPresentation(isNewWindow: boolean = true): Window | 
  */
 export function getStoredCanvasTheme(): 'light' | 'dark' {
   if (typeof window === 'undefined') return 'dark';
-  const storedCanvas = localStorage.getItem('canvas_theme');
-  if (storedCanvas === 'light' || storedCanvas === 'dark') {
-    return storedCanvas;
-  }
-  const storedTheme = localStorage.getItem('theme');
-  if (storedTheme === 'light' || storedTheme === 'dark') {
-    return storedTheme;
-  }
+  try {
+    const storedCanvas = localStorage.getItem('canvas_theme');
+    if (storedCanvas === 'light' || storedCanvas === 'dark') {
+      return storedCanvas;
+    }
+    const storedTheme = localStorage.getItem('theme');
+    if (storedTheme === 'light' || storedTheme === 'dark') {
+      return storedTheme;
+    }
+  } catch (e) {}
   return 'dark';
 }
 
@@ -231,8 +246,10 @@ export function getStoredCanvasTheme(): 'light' | 'dark' {
 export function setGlobalCanvasTheme(theme: 'light' | 'dark') {
   if (typeof window === 'undefined') return;
   
-  localStorage.setItem('canvas_theme', theme);
-  localStorage.setItem('theme', theme);
+  try {
+    localStorage.setItem('canvas_theme', theme);
+    localStorage.setItem('theme', theme);
+  } catch (e) {}
 
   if (theme === 'dark') {
     document.documentElement.classList.add('dark');
