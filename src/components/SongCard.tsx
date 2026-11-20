@@ -15,7 +15,7 @@ interface SongCardProps {
 export function SongCard({ song, onView, onPresent, onEdit, onDelete }: SongCardProps) {
   return (
     <Card className="group overflow-hidden transition-all hover:shadow-md border-slate-200 dark:border-slate-800 dark:bg-slate-900/50">
-      <CardHeader className="pb-2">
+      <CardHeader className="pb-2 cursor-pointer" onClick={() => onPresent(song)}>
         <div className="flex justify-between items-start mb-1">
           <Badge variant="secondary" className="bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-400 border-brand-100 dark:border-brand-800 font-mono">
             #{song.songNo}
@@ -26,13 +26,13 @@ export function SongCard({ song, onView, onPresent, onEdit, onDelete }: SongCard
             </Badge>
           )}
         </div>
-        <CardTitle className="text-lg font-bold group-hover:text-brand-600 transition-colors line-clamp-1 dark:text-white">
-          {song.title}
+        <CardTitle className="text-lg font-bold group-hover:text-brand-600 transition-colors line-clamp-1 dark:text-white cursor-pointer hover:underline" title="Click to open in Control Center">
+          {song.title || 'Untitled Song'}
         </CardTitle>
       </CardHeader>
       <CardContent className="pb-4">
         <p className="text-sm text-slate-500 dark:text-slate-400 line-clamp-3 font-serif italic">
-          {song.lyrics.substring(0, 120)}...
+          {(song.lyrics || '').substring(0, 120)}...
         </p>
       </CardContent>
       <CardFooter className="pt-0 flex gap-2">

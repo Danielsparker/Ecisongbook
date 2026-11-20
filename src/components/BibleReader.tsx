@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight, Book, Layers, ArrowLeft, RefreshCw, AlertCir
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { BibleVerse } from '../types';
 import { Button } from '@/components/ui/button';
-import { publishPresentationState, openPresentationWindow, getPresentationState } from '../services/presentationService';
+import { presenterManager } from '../services/presenterManager';
 
 export function BibleReader() {
   const [books, setBooks] = useState<string[]>([]);
@@ -208,23 +208,12 @@ export function BibleReader() {
     const activeVerse = verses[currentVerseIndex];
     if (!activeVerse) return;
 
-    const currentPresState = getPresentationState();
-
-    publishPresentationState({
-      ...currentPresState,
-      title: `${selectedBook} ${selectedChapter}:${activeVerse.verse}`,
-      subtitle: `${activeVerse.version || 'Holy Bible'}`,
-      slides: [activeVerse.text],
-      currentSlideIndex: 0,
-      blackScreen: false,
-      activeType: 'bible',
-      isExited: false,
-    });
-
-    const confirmLaunch = confirm("Verse sent to projector! Would you like to open the separate presentation window now?");
-    if (confirmLaunch) {
-      openPresentationWindow();
-    }
+    presenterManager.presentVerse(
+      `${selectedBook} ${selectedChapter}:${activeVerse.verse}`,
+      activeVerse.version || 'Holy Bible',
+      activeVerse.text,
+      true
+    );
   };
 
   const resetView = () => {

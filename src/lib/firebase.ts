@@ -15,12 +15,18 @@ export async function testFirestoreConnection(): Promise<boolean> {
     return true;
   } catch (error) {
     if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.error("Please check your Firebase configuration. Client is offline.");
+      console.warn("Firestore client is offline, operating from cache until reconnected.");
     }
     return false;
   }
 }
-testFirestoreConnection();
+
+// Safely probe connection without blocking application initialization
+if (typeof window !== 'undefined') {
+  setTimeout(() => {
+    testFirestoreConnection().catch(() => {});
+  }, 1000);
+}
 
 let loginInProgress = false;
 

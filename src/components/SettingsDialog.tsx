@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Moon, Sun, Users, Shield, Info, Share2, Bell, ChevronLeft, Plus, Trash2, Search, Database, Upload, Download, Loader2 } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Settings, Moon, Sun, Users, Shield, Info, Share2, Bell, ChevronLeft, ChevronRight, Plus, Trash2, Copyright } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { doc, getDoc, setDoc, collection, query, where, getDocs, updateDoc, writeBatch, serverTimestamp } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { doc, getDoc, setDoc, collection, query, where, getDocs, updateDoc } from 'firebase/firestore';
+import { db } from '../lib/firebase';
+import { CopyrightNoticeContent } from './CopyrightNotice';
 
 interface SettingsDialogProps {
   isOpen: boolean;
@@ -17,15 +17,22 @@ interface SettingsDialogProps {
   toggleDarkMode: () => void;
   isAdmin: boolean;
   onImportComplete?: () => void;
+  initialView?: 'main' | 'contributors' | 'copyright';
 }
 
-export function SettingsDialog({ isOpen, onClose, isDarkMode, toggleDarkMode, isAdmin, onImportComplete }: SettingsDialogProps) {
+export function SettingsDialog({ isOpen, onClose, isDarkMode, toggleDarkMode, isAdmin, initialView = 'main' }: SettingsDialogProps) {
   const [publicSubmissions, setPublicSubmissions] = useState(true);
   const [loading, setLoading] = useState(false);
-  const [view, setView] = useState<'main' | 'contributors'>('main');
+  const [view, setView] = useState<'main' | 'contributors' | 'copyright'>(initialView);
   const [contributorEmail, setContributorEmail] = useState('');
   const [contributors, setContributors] = useState<{ id: string; email: string; displayName: string; role: string }[]>([]);
   const [actionLoading, setActionLoading] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setView(initialView);
+    }
+  }, [isOpen, initialView]);
 
   useEffect(() => {
     if (isOpen && isAdmin) {
@@ -121,22 +128,28 @@ export function SettingsDialog({ isOpen, onClose, isDarkMode, toggleDarkMode, is
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[450px] p-0 overflow-hidden rounded-3xl max-h-[85vh] flex flex-col dark:bg-slate-950 dark:border-slate-800">
-        <DialogHeader className="p-6 pb-4 border-b shrink-0 dark:border-slate-800">
+      <DialogContent className="w-[95vw] sm:max-w-[540px] p-0 overflow-hidden rounded-3xl max-h-[88vh] flex flex-col dark:bg-slate-950 dark:border-slate-800">
+        <DialogHeader className="p-6 pb-4 pr-12 border-b shrink-0 dark:border-slate-800">
           <div className="flex items-center gap-2">
             {view !== 'main' && (
               <Button variant="ghost" size="icon" onClick={() => setView('main')} className="h-8 w-8 rounded-full">
                 <ChevronLeft className="h-5 w-5" />
               </Button>
             )}
-            <DialogTitle className="text-2xl font-bold flex items-center gap-2 dark:text-white">
-              <Settings className="h-6 w-6 text-slate-500" />
-              {view === 'main' ? 'Settings' : 'Manage Contributors'}
+            <DialogTitle className="text-xl sm:text-2xl font-bold flex items-center gap-2 dark:text-white">
+              {view === 'copyright' ? (
+                <Copyright className="h-5 w-5 text-purple-500" />
+              ) : (
+                <Settings className="h-6 w-6 text-slate-500" />
+              )}
+              {view === 'main' ? 'Settings' : view === 'copyright' ? 'Copyright & Licensing' : 'Manage Contributors'}
             </DialogTitle>
           </div>
           <DialogDescription className="dark:text-slate-400">
             {view === 'main' 
-              ? 'Manage your preferences and application settings.' 
+              ? 'Manage your preferences, legal notices, and application settings.' 
+              : view === 'copyright'
+              ? 'Important information regarding lyrics ownership and church presentation licensing.'
               : 'Grant users permission to submit lyrics when public submissions are disabled.'}
           </DialogDescription>
         </DialogHeader>
@@ -213,16 +226,39 @@ export function SettingsDialog({ isOpen, onClose, isDarkMode, toggleDarkMode, is
 
               <Separator className="dark:bg-slate-800" />
 
-              {/* About Section */}
-              <section className="space-y-4 pb-4">
+              {/* About & Legal Section */}
+              <section className="space-y-3 pb-4">
                 <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-2">
-                  <Info className="h-4 w-4" /> About
+                  <Info className="h-4 w-4" /> About &amp; Legal
                 </h3>
                 <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 space-y-2">
                   <p className="text-sm font-medium dark:text-slate-200">ECI Song Book v1.2.0</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">A digital repository for spiritual and community songs. Built for easy access and sharing.</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">A digital repository and worship lyrics presenter for congregations.</p>
                 </div>
+
+                <button
+                  type="button"
+                  onClick={() => setView('copyright')}
+                  className="w-full flex items-center justify-between gap-3 p-4 rounded-2xl bg-slate-50 hover:bg-slate-100 dark:bg-slate-900 dark:hover:bg-slate-800/80 border border-slate-100 dark:border-slate-800 text-left transition-colors cursor-pointer"
+                >
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div className="h-9 w-9 rounded-xl bg-purple-100 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0">
+                      <Copyright className="h-4.5 w-4.5" />
+                    </div>
+                    <div className="min-w-0 space-y-0.5">
+                      <p className="text-sm font-semibold text-slate-900 dark:text-white">Copyright &amp; Licensing</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        External lyrics ownership, CCLI &amp; church licensing responsibilities
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-slate-400 shrink-0" />
+                </button>
               </section>
+            </div>
+          ) : view === 'copyright' ? (
+            <div className="py-6">
+              <CopyrightNoticeContent />
             </div>
           ) : (
             <div className="py-6 space-y-6">

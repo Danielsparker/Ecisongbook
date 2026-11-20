@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Tv, Eye, EyeOff, Radio, Maximize, Minimize } from 'lucide-react';
 import { getPresentationState, PresentationState, DEFAULT_STATE, publishPresentationState } from '../services/presentationService';
+import { getBackgroundTheme } from '../data/backgroundThemes';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 
@@ -11,6 +12,51 @@ export function PresentationWindow() {
   const [showHeaders, setShowHeaders] = useState<boolean>(true);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const enterFullscreen = async () => {
+    try {
+      const docEl = document.documentElement as any;
+      if (docEl.requestFullscreen) {
+        await docEl.requestFullscreen();
+      } else if (docEl.webkitRequestFullscreen) {
+        await docEl.webkitRequestFullscreen();
+      } else if (docEl.mozRequestFullScreen) {
+        await docEl.mozRequestFullScreen();
+      } else if (docEl.msRequestFullscreen) {
+        await docEl.msRequestFullscreen();
+      }
+      setIsFullscreen(true);
+    } catch (e) {
+      console.warn('Fullscreen request could not be completed:', e);
+    }
+  };
+
+  const exitFullscreen = async () => {
+    try {
+      const doc = document as any;
+      if (doc.exitFullscreen) {
+        await doc.exitFullscreen();
+      } else if (doc.webkitExitFullscreen) {
+        await doc.webkitExitFullscreen();
+      } else if (doc.mozCancelFullScreen) {
+        await doc.mozCancelFullScreen();
+      } else if (doc.msExitFullscreen) {
+        await doc.msExitFullscreen();
+      }
+      setIsFullscreen(false);
+    } catch (e) {
+      console.warn('Exit fullscreen error:', e);
+    }
+  };
+
+  const toggleFullscreen = () => {
+    const isCurrentlyFull = !!(document.fullscreenElement || (document as any).webkitFullscreenElement);
+    if (!isCurrentlyFull) {
+      enterFullscreen();
+    } else {
+      exitFullscreen();
+    }
+  };
 
   // Auto-hide headers and overlays after 3 seconds of inactivity
   useEffect(() => {
@@ -30,34 +76,92 @@ export function PresentationWindow() {
     }, 3000);
 
     const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
+      const isFull = !!(
+        document.fullscreenElement || 
+        (document as any).webkitFullscreenElement ||
+        (document as any).mozFullScreenElement ||
+        (document as any).msFullscreenElement ||
+        (window.innerHeight === screen.height && window.innerWidth === screen.width)
+      );
+      setIsFullscreen(isFull);
+    };
+
+    const attemptAutoFullscreen = () => {
+      const isAlreadyFull = !!(
+        document.fullscreenElement || 
+        (document as any).webkitFullscreenElement ||
+        (document as any).mozFullScreenElement ||
+        (document as any).msFullscreenElement ||
+        (window.innerHeight === screen.height && window.innerWidth === screen.width)
+      );
+      if (!isAlreadyFull) {
+        enterFullscreen().catch(() => {});
+      } else {
+        setIsFullscreen(true);
+      }
+    };
+
+    // Attempt auto-fullscreen immediately upon mounting and staggered
+    attemptAutoFullscreen();
+    const t1 = setTimeout(attemptAutoFullscreen, 100);
+    const t2 = setTimeout(attemptAutoFullscreen, 350);
+    const t3 = setTimeout(attemptAutoFullscreen, 800);
+    const t4 = setTimeout(attemptAutoFullscreen, 1600);
+
+    const handleMessage = (e: MessageEvent) => {
+      if (e.data?.type === 'REQUEST_AUTO_FULLSCREEN' || e.data?.action === 'REQUEST_AUTO_FULLSCREEN') {
+        attemptAutoFullscreen();
+      }
+    };
+
+    // Auto-enter fullscreen on any user interaction anywhere on the window
+    const handleUserInteraction = () => {
+      resetTimer();
+      attemptAutoFullscreen();
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      resetTimer();
+      if (e.key === 'f' || e.key === 'F') {
+        toggleFullscreen();
+      } else {
+        attemptAutoFullscreen();
+      }
     };
 
     window.addEventListener('mousemove', resetTimer);
-    window.addEventListener('touchstart', resetTimer);
-    window.addEventListener('keydown', resetTimer);
+    window.addEventListener('touchstart', handleUserInteraction, { passive: true });
+    window.addEventListener('pointerdown', handleUserInteraction);
+    window.addEventListener('click', handleUserInteraction);
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('focus', attemptAutoFullscreen);
+    window.addEventListener('load', attemptAutoFullscreen);
+    window.addEventListener('dblclick', toggleFullscreen);
+    window.addEventListener('message', handleMessage);
     document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
 
     return () => {
       if (hideTimerRef.current) {
         clearTimeout(hideTimerRef.current);
       }
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+      clearTimeout(t4);
       window.removeEventListener('mousemove', resetTimer);
-      window.removeEventListener('touchstart', resetTimer);
-      window.removeEventListener('keydown', resetTimer);
+      window.removeEventListener('touchstart', handleUserInteraction);
+      window.removeEventListener('pointerdown', handleUserInteraction);
+      window.removeEventListener('click', handleUserInteraction);
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('focus', attemptAutoFullscreen);
+      window.removeEventListener('load', attemptAutoFullscreen);
+      window.removeEventListener('dblclick', toggleFullscreen);
+      window.removeEventListener('message', handleMessage);
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
     };
   }, []);
-
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {});
-    } else {
-      if (document.exitFullscreen) {
-        document.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => {});
-      }
-    }
-  };
 
   useEffect(() => {
     // Load initial state
@@ -74,11 +178,6 @@ export function PresentationWindow() {
             try {
               localStorage.setItem('eci_presentation_state', JSON.stringify(event.data));
             } catch (e) {}
-
-            // If presenter exited, attempt to close popup window instantly
-            if (event.data.isExited || (event.data.activeType === 'none' && (!event.data.slides || event.data.slides.length === 0))) {
-              try { window.close(); } catch (e) {}
-            }
           }
         };
       }
@@ -101,6 +200,7 @@ export function PresentationWindow() {
               slides: Array.isArray(data.slides) ? data.slides : [],
               currentSlideIndex: data.currentSlideIndex ?? 0,
               theme: data.theme || 'dark',
+              backgroundThemeId: data.backgroundThemeId || 'midnight-sanctuary',
               blackScreen: !!data.blackScreen,
               fontSize: data.fontSize || 48,
               fontFamily: data.fontFamily || 'font-baloo',
@@ -115,11 +215,6 @@ export function PresentationWindow() {
             try {
               localStorage.setItem('eci_presentation_state', JSON.stringify(nextState));
             } catch (e) {}
-
-            // If presenter exited, attempt to close popup window instantly
-            if (nextState.isExited || (nextState.activeType === 'none' && nextState.slides.length === 0 && !nextState.title)) {
-              try { window.close(); } catch (e) {}
-            }
           }
         }
       }, (error) => {
@@ -136,18 +231,15 @@ export function PresentationWindow() {
 
     // Listen to updates via LocalStorage as robust cross-origin fallback
     const handleStorageChange = () => {
-      const saved = localStorage.getItem('eci_presentation_state');
-      if (saved) {
-        try {
+      try {
+        const saved = localStorage.getItem('eci_presentation_state');
+        if (saved) {
           const parsed = JSON.parse(saved);
           if (parsed) {
             setState(parsed);
-            if (parsed.isExited || (parsed.activeType === 'none' && (!parsed.slides || parsed.slides.length === 0) && !parsed.title)) {
-              try { window.close(); } catch (e) {}
-            }
           }
-        } catch (e) {}
-      }
+        }
+      } catch (e) {}
     };
 
     window.addEventListener('storage', handleStorageChange);
@@ -183,6 +275,11 @@ export function PresentationWindow() {
       const slides = state?.slides || [];
       const currentSlideIndex = state?.currentSlideIndex ?? 0;
 
+      // Auto request fullscreen on navigation keys if not in fullscreen
+      if (!document.fullscreenElement && !(document as any).webkitFullscreenElement && (key === 'f' || key === ' ' || e.key === 'ArrowRight' || e.key === 'ArrowLeft' || e.key === 'Enter')) {
+        enterFullscreen();
+      }
+
       if (e.key === 'ArrowRight' || e.key === ' ') {
         e.preventDefault();
         if (currentSlideIndex < slides.length - 1) {
@@ -202,15 +299,9 @@ export function PresentationWindow() {
         const newState = { ...state, blackScreen: !state.blackScreen };
         setState(newState);
         publishPresentationState(newState);
-      } else if (key === 'f') {
+      } else if (key === 'f' || e.key === 'F11') {
         e.preventDefault();
-        if (!document.fullscreenElement) {
-          document.documentElement.requestFullscreen().catch((err) => {
-            console.error('Error enabling fullscreen:', err);
-          });
-        } else {
-          document.exitFullscreen();
-        }
+        toggleFullscreen();
       }
     };
 
@@ -278,27 +369,38 @@ export function PresentationWindow() {
   }[state?.fontFamily || 'font-baloo'] || 'font-baloo';
 
   const fontWeightVal = {
-    '400': 400,
-    'normal': 400,
-    '600': 600,
-    'semibold': 600,
-    '700': 700,
-    'bold': 700,
+    '900': 900,
+    'black': 900,
     '800': 800,
     'extrabold': 800,
-  }[state?.fontWeight || '700'] || 700;
+    '700': 700,
+    'bold': 700,
+    '600': 600,
+    'semibold': 600,
+    '500': 500,
+    'medium': 500,
+    '400': 400,
+    'normal': 400,
+    '300': 300,
+    'light': 300,
+  }[String(state?.fontWeight || '700')] || (Number(state?.fontWeight) || 700);
 
   // Dynamic Backdrops and Text Colors with robust Inline Overrides
-  const isDarkCanvas = state?.theme === 'dark';
   const isBlackScreen = !!state?.blackScreen;
+  const bgTheme = getBackgroundTheme(state?.backgroundThemeId);
 
-  const bgColor = isBlackScreen 
-    ? '#000000' 
-    : (isDarkCanvas ? '#020617' : '#ffffff'); // bg-slate-950 is #020617, bg-white is #ffffff
-    
+  // Background and Text color evaluation based on selected theme
+  const containerBgStyle = isBlackScreen 
+    ? { backgroundColor: '#000000' }
+    : { background: bgTheme.backgroundStyle };
+
   const textColor = isBlackScreen 
     ? 'transparent' 
-    : (isDarkCanvas ? '#ffffff' : '#0f172a'); // text-slate-900 is #0f172a
+    : (bgTheme.textColor || '#ffffff');
+    
+  const textShadow = isBlackScreen
+    ? 'none'
+    : (bgTheme.textShadow || '0 2px 10px rgba(0,0,0,0.8)');
 
   const fontSizeVal = typeof state?.fontSize === 'number' && !isNaN(state.fontSize) ? state.fontSize : (Number(state?.fontSize) || 48);
 
@@ -308,9 +410,28 @@ export function PresentationWindow() {
   if (isPromiseVerse) {
     return (
       <div 
-        className="fixed inset-0 w-screen h-screen flex items-center justify-center overflow-hidden select-none bg-black transition-colors duration-500"
-        style={{ backgroundColor: isBlackScreen ? '#000000' : (isDarkCanvas ? '#020617' : '#000000') }}
+        onClick={() => {
+          if (!document.fullscreenElement && !(document as any).webkitFullscreenElement) {
+            enterFullscreen();
+          }
+        }}
+        className="fixed inset-0 w-screen h-screen flex items-center justify-center overflow-hidden select-none bg-black transition-colors duration-500 cursor-pointer"
+        style={{ backgroundColor: '#000000' }}
       >
+        {/* Floating Quick Fullscreen Trigger Banner if not yet Fullscreen */}
+        {!isFullscreen && (
+          <div 
+            onClick={(e) => {
+              e.stopPropagation();
+              enterFullscreen();
+            }}
+            className="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full bg-brand-600/90 hover:bg-brand-500 text-white text-xs font-semibold shadow-2xl backdrop-blur-md flex items-center gap-2 border border-white/20 cursor-pointer transition-transform hover:scale-105"
+          >
+            <Maximize className="w-4 h-4 text-white" />
+            <span>Click to enter Full Screen mode (or press 'F')</span>
+          </div>
+        )}
+
         {/* Auto-hiding Top Header Bar (Disappears after 3 seconds) */}
         <div 
           className={`fixed top-0 left-0 right-0 z-50 px-6 py-4 flex justify-between items-center transition-opacity duration-500 bg-gradient-to-b from-black/80 via-black/40 to-transparent text-white text-xs font-mono uppercase tracking-wider ${
@@ -326,7 +447,10 @@ export function PresentationWindow() {
               </span>
             )}
             <button
-              onClick={toggleFullscreen}
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleFullscreen();
+              }}
               className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white border border-white/20 text-xs transition-colors cursor-pointer"
               title="Toggle Fullscreen"
             >
@@ -359,6 +483,7 @@ export function PresentationWindow() {
               <img 
                 src={state.promiseVerseUrl} 
                 alt={state.title || 'Monthly Promise Verse'} 
+                referrerPolicy="no-referrer"
                 className="w-full h-full object-contain"
               />
             </motion.div>
@@ -383,19 +508,45 @@ export function PresentationWindow() {
 
   return (
     <div
-      className="fixed inset-0 w-screen h-screen flex flex-col justify-center items-center p-6 sm:p-12 md:p-16 overflow-hidden select-none transition-colors duration-500"
+      onClick={() => {
+        if (!document.fullscreenElement && !(document as any).webkitFullscreenElement) {
+          enterFullscreen();
+        }
+      }}
+      className="fixed inset-0 w-screen h-screen flex flex-col justify-center items-center p-6 sm:p-12 md:p-16 overflow-hidden select-none transition-colors duration-500 cursor-pointer"
       style={{ 
-        backgroundColor: bgColor, 
+        ...containerBgStyle, 
         color: isBlackScreen ? '#ffffff' : textColor
       }}
     >
+      {/* Floating Quick Fullscreen Trigger Banner if not yet Fullscreen */}
+      {!isFullscreen && (
+        <div 
+          onClick={(e) => {
+            e.stopPropagation();
+            enterFullscreen();
+          }}
+          className="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full bg-brand-600/90 hover:bg-brand-500 text-white text-xs font-semibold shadow-2xl backdrop-blur-md flex items-center gap-2 border border-white/20 cursor-pointer transition-transform hover:scale-105"
+        >
+          <Maximize className="w-4 h-4 text-white" />
+          <span>Click anywhere to enter Full Screen mode (or press 'F')</span>
+        </div>
+      )}
+
       {/* Auto-hiding Top Header Bar (Fades out after 3 seconds of inactivity) */}
       <div 
         className={`fixed top-0 left-0 right-0 z-50 px-6 py-4 flex justify-between items-center transition-opacity duration-500 bg-gradient-to-b from-black/60 via-black/20 to-transparent text-white text-xs font-mono uppercase tracking-wider ${
           showHeaders ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         }`}
       >
-        <div className="font-semibold text-white/90 drop-shadow-sm">{state?.subtitle || 'ECI Songbook'}</div>
+        <div className="font-semibold text-white/90 drop-shadow-sm flex items-center gap-2">
+          <span>{state?.subtitle || 'ECI Songbook'}</span>
+          {bgTheme && !isBlackScreen && (
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/10 text-white/80 border border-white/10 font-sans font-medium">
+              {bgTheme.name}
+            </span>
+          )}
+        </div>
         <div className="flex items-center gap-3">
           {isFirestoreConnected ? (
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[11px] font-medium backdrop-blur-sm">
@@ -408,7 +559,10 @@ export function PresentationWindow() {
             </span>
           )}
           <button
-            onClick={toggleFullscreen}
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleFullscreen();
+            }}
             className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white border border-white/20 text-xs transition-colors backdrop-blur-sm cursor-pointer"
             title="Toggle Fullscreen mode"
           >
@@ -448,7 +602,7 @@ export function PresentationWindow() {
               <Tv className="w-8 h-8 animate-pulse" />
             </div>
             <div className="space-y-2 max-w-lg">
-              <h2 className="text-2xl font-bold tracking-tight" style={{ color: textColor }}>
+              <h2 className="text-2xl font-bold tracking-tight" style={{ color: textColor, textShadow }}>
                 {state?.title || 'Presentation Standby'}
               </h2>
               <p className="text-sm opacity-70 leading-relaxed" style={{ color: textColor }}>
@@ -470,7 +624,8 @@ export function PresentationWindow() {
                   fontSize: `${fontSizeVal}px`, 
                   fontWeight: fontWeightVal, 
                   lineHeight: 1.3, 
-                  color: textColor 
+                  color: textColor,
+                  textShadow
                 }}
               >
                 {activeSlideContent}

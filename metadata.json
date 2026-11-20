@@ -1,5 +1,8 @@
 {
   "name": "ECI Song Book",
-  "description": "A modern platform for sharing, searching, and downloading song lyrics as PDF and PPT.",
-  "requestFramePermissions": []
+  "description": "A modern platform for sharing, searching, and projecting song lyrics, scripture verses, and promise wallpapers with presenter controls and custom themes.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

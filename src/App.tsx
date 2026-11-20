@@ -7,7 +7,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { collection, query, orderBy, onSnapshot, addDoc, updateDoc, deleteDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
-import { Music2, Loader2, Plus, BookOpen, Sparkles } from 'lucide-react';
+import { Music2, Loader2, Plus, BookOpen, Sparkles, Globe } from 'lucide-react';
 
 import { auth, db, loginWithGoogle, logout, handleFirestoreError, OperationType } from './lib/firebase';
 import { Song } from './types';
@@ -16,33 +16,94 @@ import { SongSearch } from './components/SongSearch';
 import { SongCard } from './components/SongCard';
 import { BibleReader } from './components/BibleReader';
 import { PromiseVerseManager } from './components/PromiseVerseManager';
+import { DiscoverSongs } from './components/DiscoverSongs';
 import { LyricsModal } from './components/LyricsModal';
-import { SubmitSongDialog } from './components/SubmitSongDialog';
+import { SubmitSongDialog, getSuggestedSongNo } from './components/SubmitSongDialog';
 import { EditSongDialog } from './components/EditSongDialog';
 import { SettingsDialog } from './components/SettingsDialog';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Button } from '@/components/ui/button';
 import { PresentationWindow } from './components/PresentationWindow';
 import { PresenterControl } from './components/PresenterControl';
-import { openPresentationWindow } from './services/presentationService';
+import { presenterManager } from './services/presenterManager';
+import { tcwApiService } from './services/tcwApiService';
+import { ExternalCopyrightConsentDialog, hasAcknowledgedExternalCopyright } from './components/CopyrightNotice';
+import { Footer } from './components/Footer';
+
+const SESSION_EXTERNAL_SONGS_KEY = 'eci_session_external_songs';
+
+const loadSessionExternalSongs = (): Song[] => {
+  try {
+    const raw = sessionStorage.getItem(SESSION_EXTERNAL_SONGS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((s): s is Song => Boolean(s && typeof s === 'object')) : [];
+  } catch {
+    return [];
+  }
+};
 
 export default function App() {
-  const urlParams = useMemo(() => new URLSearchParams(window.location.search), []);
-  const isPresentationMode = useMemo(() => urlParams.get('mode') === 'presentation', [urlParams]);
+  const getUrlModeParams = () => {
+    const params = new URLSearchParams(window.location.search);
+    const mode = params.get('mode');
+    return {
+      isPresentation: mode === 'presentation',
+      isControl: mode === 'control' || mode === 'presenter' || mode === 'studio',
+      songId: params.get('songId'),
+    };
+  };
+
+  const initialUrlState = useMemo(getUrlModeParams, []);
+  const isPresentationMode = initialUrlState.isPresentation;
+  const [isPresenterControlMode, setIsPresenterControlMode] = useState(initialUrlState.isControl);
+  const [urlSongId, setUrlSongId] = useState<string | null>(initialUrlState.songId);
 
   const [user, loading] = useAuthState(auth);
   const [userRole, setUserRole] = useState<string | null>(null);
-  const [songs, setSongs] = useState<Song[]>([]);
-  const [activeTab, setActiveTab] = useState<'songs' | 'bible' | 'promiseVerse'>('songs');
+  const [songs, setSongs] = useState<Song[]>(() => {
+    try {
+      const cached = localStorage.getItem('eci_cached_songs');
+      if (!cached) return [];
+      const parsed = JSON.parse(cached);
+      return Array.isArray(parsed) ? parsed.filter((s): s is Song => Boolean(s && typeof s === 'object')) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+  const [isStudioOpen, setIsStudioOpen] = useState(false);
+  const [externalSongs, setExternalSongs] = useState<Song[]>(loadSessionExternalSongs);
+  const [presenterSong, setPresenterSong] = useState<Song | null>(null);
+  const [activeTab, setActiveTab] = useState<'songs' | 'discover' | 'bible' | 'promiseVerse'>('songs');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSong, setSelectedSong] = useState<Song | null>(null);
-  const [presenterActiveSong, setPresenterActiveSong] = useState<Song | null>(null);
   const [editingSong, setEditingSong] = useState<Song | null>(null);
   const [isSubmitOpen, setIsSubmitOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [settingsInitialView, setSettingsInitialView] = useState<'main' | 'contributors' | 'copyright'>('main');
+  const [pendingExternalSong, setPendingExternalSong] = useState<Song | null>(null);
+  const [isInitialLoading, setIsInitialLoading] = useState(() => {
+    try {
+      return !localStorage.getItem('eci_cached_songs');
+    } catch (e) {
+      return true;
+    }
+  });
   const [isLoggingIn, setIsLoggingIn] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    try {
+      return localStorage.getItem('theme') === 'dark';
+    } catch {
+      return false;
+    }
+  });
+  const [canvasTheme, setCanvasTheme] = useState<'light' | 'dark'>(() => {
+    try {
+      return (localStorage.getItem('eci_canvas_theme') as 'light' | 'dark') || 'dark';
+    } catch {
+      return 'dark';
+    }
+  });
   const [publicSubmissions, setPublicSubmissions] = useState(true);
 
   const isAdmin = useMemo(() => {
@@ -63,8 +124,53 @@ export default function App() {
     setIsSubmitOpen(true);
   };
 
+  const addExternalSongToSession = (song: Song) => {
+    setExternalSongs(prev => {
+      const filtered = prev.filter(s => (song.id ? s.id !== song.id : s.title !== song.title));
+      const next = [song, ...filtered].slice(0, 20);
+      try {
+        sessionStorage.setItem(SESSION_EXTERNAL_SONGS_KEY, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const launchSongInControlCenter = (song: Song) => {
+    if (song.isExternal) {
+      addExternalSongToSession(song);
+    }
+    setSelectedSong(null);
+    setPresenterSong(song);
+    presenterManager.presentSong(song, true);
+    setIsStudioOpen(true);
+    setIsPresenterControlMode(true);
+    if (song.id) {
+      setUrlSongId(song.id);
+    }
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('mode', 'control');
+      if (song.id) {
+        url.searchParams.set('songId', song.id);
+      }
+      window.history.pushState({}, '', url.toString());
+    } catch (e) {}
+  };
+
   const handlePresentSong = (song: Song) => {
-    setPresenterActiveSong(song);
+    if (song.isExternal && !hasAcknowledgedExternalCopyright()) {
+      setPendingExternalSong(song);
+      return;
+    }
+    launchSongInControlCenter(song);
+  };
+
+  const handlePresentExternalSong = (extSong: Song) => {
+    if (!hasAcknowledgedExternalCopyright()) {
+      setPendingExternalSong(extSong);
+      return;
+    }
+    launchSongInControlCenter(extSong);
   };
 
   const handleUpdateSong = async (songId: string, updatedData: { title: string; songNo: number; genre: string; lyrics: string }) => {
@@ -123,10 +229,18 @@ export default function App() {
         ...doc.data()
       })) as Song[];
       setSongs(songsData);
+      try {
+        localStorage.setItem('eci_cached_songs', JSON.stringify(songsData));
+      } catch (e) {}
       setIsInitialLoading(false);
     }, (err) => {
       console.error("Firestore songs fetch error:", err);
-      handleFirestoreError(err, OperationType.LIST, 'songs');
+      setIsInitialLoading(false);
+      try {
+        handleFirestoreError(err, OperationType.LIST, 'songs');
+      } catch {
+        // Logged structured Firestore error without crashing the UI listener
+      }
     });
 
     // Listen to global settings
@@ -143,12 +257,16 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (isDarkMode) {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
+    try {
+      if (isDarkMode) {
+        document.documentElement.classList.add('dark');
+        localStorage.setItem('theme', 'dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+        localStorage.setItem('theme', 'light');
+      }
+    } catch {
+      // Ignore storage access errors in restricted iframes
     }
   }, [isDarkMode]);
 
@@ -166,6 +284,10 @@ export default function App() {
       );
     });
   }, [songs, searchQuery]);
+
+  const suggestedSongNo = useMemo(() => {
+    return getSuggestedSongNo(songs);
+  }, [songs]);
 
   const handleSubmitSong = async (songData: { title: string; songNo: number; genre: string; lyrics: string }) => {
     if (!canSubmit) {
@@ -194,8 +316,92 @@ export default function App() {
     }
   };
 
+  // Listen to popstate so browser Back/Forward smoothly enters or exits Control Center
+  useEffect(() => {
+    const handlePopState = () => {
+      const next = getUrlModeParams();
+      setIsPresenterControlMode(next.isControl);
+      setIsStudioOpen(next.isControl);
+      setUrlSongId(next.songId);
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  // Resolve external song if Control Center loads directly with ?songId=tcw-...
+  useEffect(() => {
+    if (!(isPresenterControlMode || isStudioOpen)) return;
+    if (!urlSongId || !urlSongId.startsWith('tcw-')) return;
+    const alreadyLoaded =
+      (presenterSong && presenterSong.id === urlSongId) ||
+      externalSongs.some(s => s.id === urlSongId);
+    if (alreadyLoaded) return;
+
+    const slug = urlSongId.slice(4);
+    if (!slug) return;
+    tcwApiService.getSongDetail(slug)
+      .then(detail => {
+        const normalized = tcwApiService.normalizeTCWSong(detail);
+        addExternalSongToSession(normalized);
+        setPresenterSong(normalized);
+      })
+      .catch(() => {});
+  }, [isPresenterControlMode, isStudioOpen, urlSongId]);
+
+  const navigateToHome = () => {
+    setIsStudioOpen(false);
+    setIsPresenterControlMode(false);
+    setPresenterSong(null);
+    setUrlSongId(null);
+    try {
+      if (window.location.search.includes('mode=') || window.location.search.includes('songId=')) {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('mode');
+        url.searchParams.delete('songId');
+        const newSearch = url.searchParams.toString();
+        window.history.pushState({}, '', url.pathname + (newSearch ? `?${newSearch}` : ''));
+      }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (e) {}
+  };
+
   if (isPresentationMode) {
     return <PresentationWindow />;
+  }
+
+  if (isPresenterControlMode || isStudioOpen) {
+    const mergedExternal = presenterSong?.isExternal
+      ? [presenterSong, ...externalSongs.filter(s => s.id !== presenterSong.id)]
+      : externalSongs;
+    const allPresenterSongs = [...mergedExternal, ...songs];
+    const initialPresenterSong =
+      presenterSong ||
+      (urlSongId ? allPresenterSongs.find(s => s.id === urlSongId) : undefined) ||
+      selectedSong ||
+      allPresenterSongs[0] ||
+      null;
+
+    return (
+      <PresenterControl 
+        songs={allPresenterSongs} 
+        initialActiveSong={initialPresenterSong}
+        onGoHome={navigateToHome}
+        onExit={() => {
+          navigateToHome();
+          try {
+            window.close();
+          } catch (e) {}
+        }} 
+        isDarkMode={isDarkMode}
+        canvasTheme={canvasTheme}
+        onToggleCanvasTheme={(theme) => {
+          setCanvasTheme(theme);
+          try {
+            localStorage.setItem('eci_canvas_theme', theme);
+          } catch {}
+        }}
+      />
+    );
   }
 
   if (loading && isInitialLoading) {
@@ -209,31 +415,40 @@ export default function App() {
     );
   }
 
-  if (presenterActiveSong) {
-    return (
-      <PresenterControl 
-        songs={songs} 
-        initialActiveSong={presenterActiveSong} 
-        onExit={() => setPresenterActiveSong(null)} 
-        isDarkMode={isDarkMode}
-      />
-    );
-  }
+  const handleOpenStudio = (songId?: string) => {
+    setIsStudioOpen(true);
+    setIsPresenterControlMode(true);
+    if (songId) {
+      setUrlSongId(songId);
+    }
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('mode', 'control');
+      if (songId) {
+        url.searchParams.set('songId', songId);
+      }
+      window.history.pushState({}, '', url.toString());
+    } catch (e) {}
+  };
 
   return (
     <ErrorBoundary>
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-20 transition-colors duration-300">
+      <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
         <Navbar 
           user={user} 
           onLogin={handleLogin} 
           onLogout={logout} 
           onAddSong={handleAddClick}
-          onOpenSettings={() => setIsSettingsOpen(true)}
+          onOpenSettings={() => {
+            setSettingsInitialView('main');
+            setIsSettingsOpen(true);
+          }}
+          onOpenStudio={() => handleOpenStudio(presenterSong?.id || selectedSong?.id)}
           canSubmit={canSubmit}
           isLoggingIn={isLoggingIn}
         />
 
-        <main className="container mx-auto px-4 py-12">
+        <main className="container mx-auto px-4 py-12 flex-1">
           {/* Hero Section */}
           <section className="mb-16 text-center">
             <motion.div
@@ -242,12 +457,16 @@ export default function App() {
               transition={{ duration: 0.5 }}
             >
               <h1 className="mb-4 text-3xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-6xl font-serif">
-                Every <span className="text-brand-600 italic">{activeTab === 'songs' ? 'Song' : 'Verse'}</span> Has a Story.
+                Every <span className="text-brand-600 italic">{activeTab === 'songs' ? 'Song' : activeTab === 'discover' ? 'Catalogue' : 'Verse'}</span> Has a Story.
               </h1>
               <p className="mx-auto mb-10 max-w-2xl text-lg text-slate-500 dark:text-slate-400">
                 {activeTab === 'songs' 
                   ? 'Explore thousands of lyrics, submit your own favorites, and download them as beautiful PDF or PPT presentations.'
-                  : 'Discover inspirational Bible verses and wisdom connected via Supabase.'}
+                  : activeTab === 'discover'
+                  ? 'Discover over 16,000+ Tamil Christian songs from Tamil Christian World, preview lyrics & chords, and present live.'
+                  : activeTab === 'bible'
+                  ? 'Read, search, and present Tamil and English Scripture verses seamlessly during worship.'
+                  : 'Browse and project monthly promise verse wallpapers directly onto your church screen.'}
               </p>
             </motion.div>
 
@@ -258,7 +477,7 @@ export default function App() {
               className="flex flex-col items-center gap-8"
             >
               {/* Tab Switcher */}
-              <div className="flex p-1 bg-slate-100 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-inner">
+              <div className="flex p-1 bg-slate-100 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-inner flex-wrap justify-center gap-1">
                 <button
                   onClick={() => setActiveTab('songs')}
                   className={`relative flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 ${
@@ -273,7 +492,24 @@ export default function App() {
                     />
                   )}
                   <Music2 className={`relative z-10 h-4 w-4 ${activeTab === 'songs' ? 'animate-pulse' : ''}`} />
-                  <span className="relative z-10">Songs</span>
+                  <span className="relative z-10">My Songbook</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('discover')}
+                  className={`relative flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 ${
+                    activeTab === 'discover' ? 'text-white' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300'
+                  }`}
+                >
+                  {activeTab === 'discover' && (
+                    <motion.div
+                      layoutId="active-tab"
+                      className="absolute inset-0 bg-purple-600 rounded-xl shadow-lg shadow-purple-500/20"
+                      transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                    />
+                  )}
+                  <Globe className={`relative z-10 h-4 w-4 ${activeTab === 'discover' ? 'animate-pulse' : ''}`} />
+                  <span className="relative z-10">Discover (16K+)</span>
                 </button>
 
                 <button
@@ -311,24 +547,30 @@ export default function App() {
                 </button>
               </div>
 
-              <SongSearch 
-                value={searchQuery} 
-                onChange={setSearchQuery} 
-                placeholder={activeTab === 'songs' ? "Search for songs, numbers or genre..." : "Browse Bible Chapters..."}
-              />
+              {activeTab !== 'discover' && (
+                <SongSearch 
+                  value={searchQuery} 
+                  onChange={setSearchQuery} 
+                  placeholder={activeTab === 'songs' ? "Search for songs, numbers or genre..." : "Browse Bible Chapters..."}
+                />
+              )}
             </motion.div>
           </section>
 
           {/* Grid Section */}
           <section>
-            <div className="mb-8 flex items-center justify-between">
-              <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
-                {searchQuery ? 'Search Results' : (activeTab === 'songs' ? 'Recent Songs' : activeTab === 'bible' ? 'Bible Database' : 'Promise Verse Wallpapers')}
-              </h2>
-              <span className="text-sm text-slate-500">
-                {activeTab === 'songs' ? `${filteredSongs.length} songs` : (activeTab === 'bible' ? 'Supabase Connected' : 'Monthly Wallpapers')}
-              </span>
-            </div>
+            {activeTab !== 'discover' && (
+              <div className="mb-8 flex items-center justify-between">
+                <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
+                  {searchQuery ? 'Search Results' : (activeTab === 'songs' ? 'Recent Songs' : activeTab === 'bible' ? 'Bible Database' : 'Promise Verse Wallpapers')}
+                </h2>
+                {(activeTab === 'songs' || activeTab === 'promiseVerse') && (
+                  <span className="text-sm text-slate-500">
+                    {activeTab === 'songs' ? `${filteredSongs.length} songs` : 'Monthly Wallpapers'}
+                  </span>
+                )}
+              </div>
+            )}
 
             <AnimatePresence mode="wait">
               <motion.div
@@ -375,6 +617,11 @@ export default function App() {
                       </Button>
                     </div>
                   )
+                ) : activeTab === 'discover' ? (
+                  <DiscoverSongs 
+                    onPresentSong={handlePresentExternalSong} 
+                    isDarkMode={isDarkMode} 
+                  />
                 ) : activeTab === 'bible' ? (
                   <BibleReader />
                 ) : (
@@ -382,14 +629,7 @@ export default function App() {
                     user={user} 
                     canvasTheme={isDarkMode ? 'dark' : 'light'} 
                     onPresentVerse={(verse) => {
-                      setPresenterActiveSong({
-                        title: verse.title,
-                        songNo: 0,
-                        genre: verse.month || 'Promise Verse',
-                        lyrics: verse.reference || verse.title,
-                        submittedBy: verse.submittedBy || 'system',
-                        createdAt: new Date(),
-                      });
+                      presenterManager.presentPromiseVerse(verse, true);
                     }}
                   />
                 )}
@@ -397,6 +637,23 @@ export default function App() {
             </AnimatePresence>
           </section>
         </main>
+
+        <Footer
+          onNavigateTab={(tab) => {
+            setActiveTab(tab);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+          onOpenStudio={() => handleOpenStudio(presenterSong?.id || selectedSong?.id)}
+          onAddSong={handleAddClick}
+          onOpenCopyright={() => {
+            setSettingsInitialView('copyright');
+            setIsSettingsOpen(true);
+          }}
+          onOpenSettings={() => {
+            setSettingsInitialView('main');
+            setIsSettingsOpen(true);
+          }}
+        />
 
         {/* Modals */}
         <LyricsModal 
@@ -415,6 +672,8 @@ export default function App() {
           isOpen={isSubmitOpen} 
           onClose={() => setIsSubmitOpen(false)} 
           onSubmit={handleSubmitSong} 
+          suggestedSongNo={suggestedSongNo}
+          songs={songs}
         />
 
         <EditSongDialog
@@ -431,6 +690,17 @@ export default function App() {
           isDarkMode={isDarkMode}
           toggleDarkMode={() => setIsDarkMode(!isDarkMode)}
           isAdmin={isAdmin}
+          initialView={settingsInitialView}
+        />
+
+        <ExternalCopyrightConsentDialog
+          song={pendingExternalSong}
+          isOpen={!!pendingExternalSong}
+          onConfirm={(song) => {
+            setPendingExternalSong(null);
+            launchSongInControlCenter(song);
+          }}
+          onCancel={() => setPendingExternalSong(null)}
         />
 
         {/* Floating Action Button for Mobile */}

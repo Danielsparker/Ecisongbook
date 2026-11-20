@@ -16,6 +16,7 @@ import {
   Moon, 
   X, 
   Maximize, 
+  Maximize2,
   Eye, 
   EyeOff,
   Music,
@@ -29,9 +30,15 @@ import {
   Layers,
   Plus,
   Minus,
-  Sparkles
+  Sparkles,
+  AppWindow,
+  Palette,
+  Shuffle,
+  Home,
+  Globe,
+  Loader2
 } from 'lucide-react';
-import { Song, BibleVerse } from '../types';
+import { Song, BibleVerse, TCWSongSummary } from '../types';
 import { 
   getPresentationState, 
   publishPresentationState, 
@@ -39,26 +46,73 @@ import {
   splitLyricsToSlides, 
   DEFAULT_STATE, 
   openPresentationWindow,
+  openWindowedPresentation,
+  setGlobalCanvasTheme,
   PresentationState
 } from '../services/presentationService';
+import { presenterManager } from '../services/presenterManager';
+import { tcwApiService } from '../services/tcwApiService';
+import { 
+  LYRIC_BACKGROUND_THEMES, 
+  getBackgroundTheme, 
+  getRandomBackgroundTheme,
+  LyricBackgroundTheme 
+} from '../data/backgroundThemes';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { PresentationLiveMenu, PresentationMode } from './PresentationLiveMenu';
+import { FullScreenPresentation } from './FullScreenPresentation';
+import {
+  CopyrightNoticeModal,
+  CopyrightInfoIconButton,
+  ExternalCopyrightConsentDialog,
+  hasAcknowledgedExternalCopyright,
+} from './CopyrightNotice';
 
 interface PresenterControlProps {
   songs: Song[];
   initialActiveSong: Song | null;
   onExit: () => void;
-  isDarkMode: boolean;
+  onGoHome?: () => void;
+  isDarkMode?: boolean;
+  canvasTheme?: 'light' | 'dark';
+  onToggleCanvasTheme?: (theme: 'light' | 'dark') => void;
 }
 
-export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode }: PresenterControlProps) {
+export function PresenterControl({ 
+  songs, 
+  initialActiveSong, 
+  onExit, 
+  onGoHome,
+  canvasTheme,
+  onToggleCanvasTheme 
+}: PresenterControlProps) {
   const [activeSong, setActiveSong] = useState<Song | null>(initialActiveSong);
-  const [activeTab, setActiveTab] = useState<'songs' | 'bible' | 'promiseVerse'>('songs');
+  const [activeTab, setActiveTab] = useState<'songs' | 'discover' | 'bible' | 'promiseVerse'>('songs');
   const [promiseVerses, setPromiseVerses] = useState<any[]>([]);
   const [showPromiseVerseMenu, setShowPromiseVerseMenu] = useState(false);
+  const [isFullScreenModalOpen, setIsFullScreenModalOpen] = useState(false);
+  const [showCopyrightModal, setShowCopyrightModal] = useState(false);
+  const [pendingConsentSong, setPendingConsentSong] = useState<Song | null>(null);
+  const [pendingLaunchMode, setPendingLaunchMode] = useState<PresentationMode | null>(null);
+  const [sessionExternalSongs, setSessionExternalSongs] = useState<Song[]>(() => {
+    try {
+      const raw = sessionStorage.getItem('eci_session_external_songs');
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed.filter((s): s is Song => Boolean(s && typeof s === 'object')) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [externalResults, setExternalResults] = useState<TCWSongSummary[]>([]);
+  const [externalLoading, setExternalLoading] = useState(false);
+  const [externalError, setExternalError] = useState<string | null>(null);
+  const [loadingExternalSlug, setLoadingExternalSlug] = useState<string | null>(null);
+  const [externalRetryNonce, setExternalRetryNonce] = useState(0);
 
   // Fetch promise verses for quick presentation in left panel
   useEffect(() => {
@@ -69,6 +123,62 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
     return () => unsub();
   }, []);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Load live external Tamil Christian World songs whenever External tab is open or search changes
+  useEffect(() => {
+    if (activeTab !== 'discover') return;
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      setExternalLoading(true);
+      setExternalError(null);
+      try {
+        const res = await tcwApiService.searchSongs(searchQuery.trim() || undefined, 1, 50);
+        if (!cancelled) {
+          setExternalResults(res.songs || []);
+        }
+      } catch (err: any) {
+        if (!cancelled) {
+          setExternalError(err?.message || 'Unable to load external songs');
+        }
+      } finally {
+        if (!cancelled) {
+          setExternalLoading(false);
+        }
+      }
+    }, searchQuery ? 350 : 0);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [activeTab, searchQuery, externalRetryNonce]);
+
+  const handleSelectExternalSummary = async (summary: TCWSongSummary) => {
+    try {
+      setLoadingExternalSlug(summary.slug);
+      const detail = await tcwApiService.getSongDetail(summary.slug);
+      const normalized = tcwApiService.normalizeTCWSong(detail);
+
+      setSessionExternalSongs(prev => {
+        const next = [normalized, ...prev.filter(s => s.id !== normalized.id)].slice(0, 20);
+        try {
+          sessionStorage.setItem('eci_session_external_songs', JSON.stringify(next));
+        } catch {}
+        return next;
+      });
+
+      if (!hasAcknowledgedExternalCopyright()) {
+        setPendingLaunchMode(null);
+        setPendingConsentSong(normalized);
+        return;
+      }
+      setActiveSong(normalized);
+    } catch (err: any) {
+      setExternalError(err?.message || 'Failed to load lyrics for selected external song');
+    } finally {
+      setLoadingExternalSlug(null);
+    }
+  };
 
   const handlePresentPromiseVerse = (pv: any) => {
     const updated: PresentationState = {
@@ -92,16 +202,17 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
     const saved = getPresentationState();
     const baseState = {
       ...saved,
+      theme: canvasTheme || saved.theme || 'dark',
       isExited: false,
       blackScreen: false,
     };
     // If we have an initial active song, load it up!
     if (initialActiveSong) {
-      const slides = splitLyricsToSlides(initialActiveSong.lyrics);
+      const slides = splitLyricsToSlides(initialActiveSong.lyrics || '');
       return {
         ...baseState,
-        title: initialActiveSong.title,
-        subtitle: `Song #${initialActiveSong.songNo}`,
+        title: initialActiveSong.title || '',
+        subtitle: initialActiveSong.isExternal ? 'Tamil Christian World' : `Song #${initialActiveSong.songNo ?? ''}`,
         slides: slides,
         currentSlideIndex: 0,
         activeType: 'song'
@@ -110,11 +221,11 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
     // If saved state has no slides and songs are available, auto-load the first song
     if ((!saved.slides || saved.slides.length === 0) && songs && songs.length > 0) {
       const firstSong = songs[0];
-      const slides = splitLyricsToSlides(firstSong.lyrics);
+      const slides = splitLyricsToSlides(firstSong?.lyrics || '');
       return {
         ...baseState,
-        title: firstSong.title,
-        subtitle: `Song #${firstSong.songNo}`,
+        title: firstSong?.title || '',
+        subtitle: `Song #${firstSong?.songNo ?? ''}`,
         slides: slides,
         currentSlideIndex: 0,
         activeType: 'song'
@@ -123,12 +234,25 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
     return baseState;
   });
 
+  // Keep theme in sync when canvasTheme prop changes
+  useEffect(() => {
+    if (canvasTheme && presState.theme !== canvasTheme) {
+      setPresState(prev => ({ ...prev, theme: canvasTheme }));
+    }
+  }, [canvasTheme]);
+
   const [projectorWindow, setProjectorWindow] = useState<Window | null>(null);
   const [showInstructions, setShowInstructions] = useState(false);
   const [copied, setCopied] = useState(false);
   const [instructionsTab, setInstructionsTab] = useState<'cloud' | 'hdmi' | 'multi'>('cloud');
 
-  const isLightCanvas = presState.theme === 'light';
+  const isLightCanvas = presState.theme === 'light' || canvasTheme === 'light';
+
+  const handleCanvasThemeChange = (theme: 'light' | 'dark') => {
+    setPresState(prev => ({ ...prev, theme }));
+    onToggleCanvasTheme?.(theme);
+    setGlobalCanvasTheme(theme);
+  };
 
   const alignmentClass = {
     left: 'text-left justify-start items-start',
@@ -141,19 +265,106 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
     'font-anek': 'font-anek',
     'font-tiro': 'font-tiro',
     'font-sans': 'font-sans',
-    'font-serif': 'font-serif font-medium',
+    'font-serif': 'font-serif',
     'font-mono': 'font-mono',
   }[presState.fontFamily || 'font-baloo'] || 'font-baloo';
+
+  const fontWeightVal = {
+    '900': 900,
+    'black': 900,
+    '800': 800,
+    'extrabold': 800,
+    '700': 700,
+    'bold': 700,
+    '600': 600,
+    'semibold': 600,
+    '500': 500,
+    'medium': 500,
+    '400': 400,
+    'normal': 400,
+    '300': 300,
+    'light': 300,
+  }[String(presState.fontWeight || '700')] || 700;
 
   const projectorUrl = useMemo(() => {
     if (typeof window === 'undefined') return '';
     return `${window.location.origin}${window.location.pathname}?mode=presentation`;
   }, []);
 
-  // Sync state initially and whenever changes are made
+  const isRemoteSyncRef = useRef(false);
+  const prevInitialSongKeyRef = useRef<string | null>(
+    initialActiveSong ? (initialActiveSong.id || `${initialActiveSong.songNo}-${initialActiveSong.title}`) : null
+  );
+
+  // Sync state initially and whenever local changes are made
   useEffect(() => {
+    if (isRemoteSyncRef.current) {
+      isRemoteSyncRef.current = false;
+      return;
+    }
     publishPresentationState(presState);
   }, [presState]);
+
+  // Listen to BroadcastChannel / storage updates from projector window or other Control Center tabs
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    let bc: BroadcastChannel | null = null;
+    const applyRemote = (incoming: PresentationState | null) => {
+      if (!incoming || !Array.isArray(incoming.slides)) return;
+      setPresState(prev => {
+        if (
+          prev.title === incoming.title &&
+          prev.currentSlideIndex === incoming.currentSlideIndex &&
+          prev.blackScreen === incoming.blackScreen &&
+          prev.theme === incoming.theme &&
+          prev.backgroundThemeId === incoming.backgroundThemeId &&
+          prev.fontSize === incoming.fontSize &&
+          prev.fontFamily === incoming.fontFamily &&
+          prev.slides.length === incoming.slides.length &&
+          prev.slides[prev.currentSlideIndex] === incoming.slides[incoming.currentSlideIndex]
+        ) {
+          return prev;
+        }
+        isRemoteSyncRef.current = true;
+        return { ...prev, ...incoming };
+      });
+    };
+
+    try {
+      if ('BroadcastChannel' in window) {
+        bc = new BroadcastChannel('eci-presentation');
+        bc.onmessage = (event) => {
+          if (event.data) applyRemote(event.data);
+        };
+      }
+    } catch (e) {}
+
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'eci_presentation_state' && e.newValue) {
+        try {
+          applyRemote(JSON.parse(e.newValue));
+        } catch (err) {}
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+
+    return () => {
+      if (bc) {
+        try { bc.close(); } catch (e) {}
+      }
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, []);
+
+  // Keep activeSong in sync whenever initialActiveSong identity changes from parent
+  useEffect(() => {
+    if (!initialActiveSong) return;
+    const nextKey = initialActiveSong.id || `${initialActiveSong.songNo}-${initialActiveSong.title}`;
+    if (nextKey !== prevInitialSongKeyRef.current) {
+      prevInitialSongKeyRef.current = nextKey;
+      setActiveSong(initialActiveSong);
+    }
+  }, [initialActiveSong]);
 
   // Load active song slides
   useEffect(() => {
@@ -161,23 +372,33 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
       if (activeSong.songNo === 0 && presState.activeType === 'promiseVerse') {
         return;
       }
-      const slides = splitLyricsToSlides(activeSong.lyrics);
+      const slides = splitLyricsToSlides(activeSong.lyrics || '');
       setPresState(prev => ({
         ...prev,
-        title: activeSong.title,
-        subtitle: `Song #${activeSong.songNo}`,
+        title: activeSong.title || '',
+        subtitle: activeSong.isExternal ? 'Tamil Christian World' : `Song #${activeSong.songNo ?? ''}`,
         slides: slides,
         currentSlideIndex: 0,
-        activeType: 'song'
+        activeType: 'song',
+        isExited: false,
+        blackScreen: false,
       }));
+    } else if (songs && songs.length > 0 && (!presState.slides || presState.slides.length === 0)) {
+      setActiveSong(songs[0]);
     }
-  }, [activeSong]);
+  }, [activeSong, songs]);
 
   // Handle global keydown events for slide controls and blackout
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore if typing in input fields
-      if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') {
+      // Ignore if typing in input fields, textareas, select dropdowns, or contenteditable areas
+      const activeEl = document.activeElement;
+      if (
+        activeEl?.tagName === 'INPUT' || 
+        activeEl?.tagName === 'TEXTAREA' || 
+        activeEl?.tagName === 'SELECT' ||
+        activeEl?.getAttribute('contenteditable') === 'true'
+      ) {
         return;
       }
 
@@ -202,16 +423,32 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [presState]);
 
+  // Merge parent songs with session external songs cleanly without duplicates
+  const combinedSongs = useMemo(() => {
+    const seenIds = new Set<string>();
+    const list: Song[] = [];
+    for (const s of [...sessionExternalSongs, ...songs]) {
+      const key = s.id || (s.isExternal ? `ext-${s.title}` : `no-${s.songNo}-${s.title}`);
+      if (!seenIds.has(key)) {
+        seenIds.add(key);
+        list.push(s);
+      }
+    }
+    return list;
+  }, [sessionExternalSongs, songs]);
+
   // Filter songs
   const filteredSongs = useMemo(() => {
-    if (!searchQuery) return songs;
+    if (!searchQuery) return combinedSongs;
     const lower = searchQuery.toLowerCase();
-    return songs.filter(s => 
-      s.title.toLowerCase().includes(lower) || 
-      s.genre.toLowerCase().includes(lower) || 
-      s.songNo.toString().includes(lower)
+    return combinedSongs.filter(s => 
+      (s.title || '').toLowerCase().includes(lower) || 
+      (s.transliteration && s.transliteration.toLowerCase().includes(lower)) ||
+      (s.genre && s.genre.toLowerCase().includes(lower)) || 
+      (s.songNo !== undefined && s.songNo !== null ? s.songNo.toString().includes(lower) : false) ||
+      (s.artist && s.artist.toLowerCase().includes(lower))
     );
-  }, [songs, searchQuery]);
+  }, [combinedSongs, searchQuery]);
 
   // Slide navigation
   const handleSelectSlide = (index: number) => {
@@ -257,6 +494,10 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
     }));
   };
 
+  const handleFontWeightChange = (weight: string) => {
+    setPresState(prev => ({ ...prev, fontWeight: weight }));
+  };
+
   const handleAlignmentChange = (align: 'left' | 'center' | 'right') => {
     setPresState(prev => ({ ...prev, alignment: align }));
   };
@@ -269,41 +510,90 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
     setPresState(prev => ({ ...prev, fontSize: size }));
   };
 
-  const handleLaunchProjector = () => {
+  const handleBackgroundThemeChange = (themeId: string) => {
+    setPresState(prev => ({
+      ...prev,
+      backgroundThemeId: themeId,
+    }));
+  };
+
+  const handleRandomBackgroundTheme = () => {
+    const random = getRandomBackgroundTheme(presState.backgroundThemeId);
+    setPresState(prev => ({
+      ...prev,
+      backgroundThemeId: random.id,
+    }));
+  };
+
+  const launchPresentationMode = async (mode: PresentationMode) => {
     const activeState = { ...presState, isExited: false, blackScreen: false };
     setPresState(activeState);
     publishPresentationState(activeState);
-    const win = openPresentationWindow();
-    setProjectorWindow(win);
+
+    if (mode === 'presenter' || mode === 'windowed') {
+      const win = await presenterManager.openPresenterWindow();
+      setProjectorWindow(win);
+    } else if (mode === 'fullscreen') {
+      setIsFullScreenModalOpen(true);
+    }
+  };
+
+  const handleSelectPresentationMode = async (mode: PresentationMode) => {
+    const isExternalActive = Boolean(activeSong?.isExternal || presState.subtitle === 'Tamil Christian World');
+    if (isExternalActive && !hasAcknowledgedExternalCopyright()) {
+      const targetSong: Song = activeSong || {
+        title: presState.title || 'External Song',
+        songNo: 0,
+        genre: 'Tamil Christian World',
+        lyrics: presState.slides.join('\n\n'),
+        submittedBy: 'Tamil Christian World',
+        createdAt: '',
+        isExternal: true,
+        source: 'Tamil Christian World',
+      };
+      setPendingLaunchMode(mode);
+      setPendingConsentSong(targetSong);
+      return;
+    }
+    await launchPresentationMode(mode);
+  };
+
+  const handleLaunchProjector = async () => {
+    await handleSelectPresentationMode('presenter');
   };
 
   const handleExit = () => {
-    // Instantly clear presentation state in Firebase, BroadcastChannel, and LocalStorage
-    clearPresentationState();
-
-    // Close local projector window if opened
-    if (projectorWindow && !projectorWindow.closed) {
-      try {
-        projectorWindow.close();
-      } catch (e) {
-        console.warn("Could not close projector window:", e);
-      }
-    }
-
+    // End presentation state cleanly without closing primary window
+    presenterManager.endPresentation(false);
     onExit();
   };
 
-  const toggleProjectorFullscreen = () => {
-    // If window is open, try requesting fullscreen in that window
+  const handleGoHome = () => {
+    presenterManager.endPresentation(false);
+    if (onGoHome) {
+      onGoHome();
+    } else {
+      onExit();
+    }
+  };
+
+  const toggleProjectorFullscreen = async () => {
+    // If window is open, focus and request fullscreen
     if (projectorWindow && !projectorWindow.closed) {
       try {
-        projectorWindow.document.documentElement.requestFullscreen();
+        projectorWindow.focus();
+        projectorWindow.postMessage({ type: 'REQUEST_AUTO_FULLSCREEN' }, '*');
+        if (projectorWindow.document?.documentElement?.requestFullscreen) {
+          projectorWindow.document.documentElement.requestFullscreen().catch(() => {});
+        }
       } catch (e) {
-        console.warn("Fullscreen request on popup window blocked or unsupported", e);
-        alert("To make fullscreen, click on the Projector tab/window and press 'F' on your keyboard.");
+        console.warn("Fullscreen request on popup window:", e);
       }
     } else {
-      alert("No active projector screen opened! Click 'Launch Projector Screen' first, move it to your secondary display/projector, and press F to go fullscreen.");
+      const win = await presenterManager.openPresenterWindow();
+      if (win) {
+        setProjectorWindow(win);
+      }
     }
   };
 
@@ -326,23 +616,87 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
   };
 
   return (
-    <div className="w-full min-h-screen bg-slate-900 text-slate-100 flex flex-col p-4 font-sans select-none antialiased">
+    <div className={`w-full min-h-screen flex flex-col p-4 font-sans select-none antialiased transition-colors duration-200 ${
+      isLightCanvas ? 'bg-slate-100 text-slate-900' : 'bg-slate-950 text-slate-100'
+    }`}>
+      {/* Fullscreen Presentation Modal when Full Screen mode is triggered directly */}
+      {isFullScreenModalOpen && (
+        <FullScreenPresentation
+          song={activeSong}
+          promiseVerse={
+            presState.activeType === 'promiseVerse' && presState.promiseVerseUrl
+              ? {
+                  title: presState.title || 'Promise Verse',
+                  imageUrl: presState.promiseVerseUrl,
+                  reference: presState.promiseVerseReference
+                }
+              : null
+          }
+          startSlideIndex={presState.currentSlideIndex}
+          canvasTheme={presState.theme}
+          onToggleCanvasTheme={handleCanvasThemeChange}
+          onExit={() => setIsFullScreenModalOpen(false)}
+        />
+      )}
+
       {/* Header Bar */}
-      <header className="flex justify-between items-center border-b border-slate-800 pb-4 mb-4 shrink-0">
+      <header className={`flex flex-wrap justify-between items-center gap-3 border-b pb-4 mb-4 shrink-0 transition-colors ${
+        isLightCanvas ? 'border-slate-300' : 'border-slate-800'
+      }`}>
         <div className="flex items-center gap-3">
-          <Tv className="h-6 w-6 text-brand-500 animate-pulse" />
+          <Button
+            type="button"
+            onClick={handleGoHome}
+            variant="ghost"
+            size="sm"
+            title="Go to Home Page"
+            aria-label="Go to Home Page"
+            className={`gap-1.5 h-9 px-2.5 rounded-xl border transition-colors cursor-pointer ${
+              isLightCanvas
+                ? 'bg-white hover:bg-slate-200 text-slate-700 border-slate-300 shadow-sm'
+                : 'bg-slate-900 hover:bg-slate-800 text-slate-200 border-slate-700 hover:text-white'
+            }`}
+          >
+            <Home className="h-4 w-4 text-brand-500" />
+            <span className="hidden sm:inline text-xs font-semibold">Home</span>
+          </Button>
+          <Tv className={`h-6 w-6 animate-pulse ${isLightCanvas ? 'text-brand-600' : 'text-brand-400'}`} />
           <div>
-            <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+            <h1 className={`text-xl font-bold tracking-tight flex items-center gap-2 ${
+              isLightCanvas ? 'text-slate-900' : 'text-white'
+            }`}>
               Presenter Control Center 
-              <Badge variant="outline" className="border-brand-500/30 text-brand-400 bg-brand-950/20 text-xs py-0 px-2 rounded-full font-mono">
+              <Badge variant="outline" className={`text-xs py-0 px-2 rounded-full font-mono ${
+                isLightCanvas 
+                  ? 'border-brand-300 text-brand-700 bg-brand-50' 
+                  : 'border-brand-500/30 text-brand-400 bg-brand-950/20'
+              }`}>
                 Live Console
               </Badge>
             </h1>
-            <p className="text-xs text-slate-400">ECI worship slide manager & worship control interface</p>
+            <p className={`text-xs ${isLightCanvas ? 'text-slate-600' : 'text-slate-400'}`}>
+              ECI worship slide manager & worship control interface
+            </p>
           </div>
         </div>
         
         <div className="flex items-center gap-2.5">
+          {/* Canvas Theme Quick-Switch Header Button */}
+          <Button
+            onClick={() => handleCanvasThemeChange(isLightCanvas ? 'dark' : 'light')}
+            variant="ghost"
+            size="sm"
+            className={`gap-2 h-9 rounded-xl font-semibold transition-all border ${
+              isLightCanvas
+                ? 'bg-amber-100 hover:bg-amber-200 text-amber-900 border-amber-300 shadow-sm'
+                : 'bg-slate-900 hover:bg-slate-800 text-slate-200 border-slate-700'
+            }`}
+            title="Toggle Canvas Theme (Applies to entire application UI & Projector)"
+          >
+            {isLightCanvas ? <Sun className="h-4 w-4 text-amber-600" /> : <Moon className="h-4 w-4 text-brand-400" />}
+            <span>{isLightCanvas ? 'Light Canvas' : 'Dark Canvas'}</span>
+          </Button>
+
           {/* Promise Verse Option Button (In front of Blackout Screen) */}
           <div 
             className="relative"
@@ -356,26 +710,36 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
               className={`gap-2 h-9 rounded-xl font-semibold transition-all border ${
                 presState.activeType === 'promiseVerse'
                   ? '!bg-amber-600 hover:!bg-amber-500 !text-white border-amber-400 shadow-lg shadow-amber-900/30'
-                  : '!bg-slate-800 hover:!bg-slate-700 !text-slate-100 border-slate-700 hover:border-slate-600'
+                  : isLightCanvas
+                    ? '!bg-white hover:!bg-slate-100 !text-slate-800 border-slate-300 shadow-sm'
+                    : '!bg-slate-900 hover:!bg-slate-800 !text-slate-100 border-slate-700 hover:border-slate-600'
               }`}
             >
-              <Sparkles className="h-4 w-4 text-amber-400" />
+              <Sparkles className="h-4 w-4 text-amber-500" />
               Promise Verse
               {promiseVerses.length > 0 && (
-                <span className="ml-0.5 px-1.5 py-0.2 text-[10px] bg-slate-900/80 text-amber-300 rounded-full border border-amber-500/30 font-mono">
+                <span className={`ml-0.5 px-1.5 py-0.2 text-[10px] rounded-full border font-mono ${
+                  isLightCanvas ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-slate-950 text-amber-300 border-amber-500/30'
+                }`}>
                   {promiseVerses.length}
                 </span>
               )}
             </Button>
 
             {showPromiseVerseMenu && (
-              <div className="absolute left-0 sm:left-auto sm:right-0 top-full mt-2 w-80 sm:w-96 bg-slate-900/95 border border-slate-700/80 rounded-2xl shadow-2xl backdrop-blur-md p-3.5 z-50 animate-in fade-in zoom-in-95 duration-150">
-                <div className="flex justify-between items-center pb-2.5 mb-2.5 border-b border-slate-800">
+              <div className={`absolute left-0 sm:left-auto sm:right-0 top-full mt-2 w-80 sm:w-96 rounded-2xl shadow-2xl backdrop-blur-md p-3.5 z-50 animate-in fade-in zoom-in-95 duration-150 border ${
+                isLightCanvas 
+                  ? 'bg-white/95 border-slate-200 text-slate-900' 
+                  : 'bg-slate-900/95 border-slate-700/80 text-slate-100'
+              }`}>
+                <div className={`flex justify-between items-center pb-2.5 mb-2.5 border-b ${
+                  isLightCanvas ? 'border-slate-200' : 'border-slate-800'
+                }`}>
                   <div className="flex items-center gap-2">
-                    <Sparkles className="h-4 w-4 text-amber-400" />
-                    <span className="text-xs font-bold text-white uppercase tracking-wider">Promise Verse Wallpapers</span>
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <span className="text-xs font-bold uppercase tracking-wider">Promise Verse Wallpapers</span>
                   </div>
-                  <Badge variant="outline" className="text-[10px] border-amber-500/30 text-amber-400 bg-amber-950/20">
+                  <Badge variant="outline" className="text-[10px] border-amber-500/30 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20">
                     {promiseVerses.length} Available
                   </Badge>
                 </div>
@@ -393,14 +757,19 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
                           }}
                           className={`group relative flex items-center gap-3 p-2 rounded-xl border transition-all cursor-pointer ${
                             isActive
-                              ? 'bg-amber-950/40 border-amber-500/80 shadow-md shadow-amber-950/50 ring-1 ring-amber-500/50'
-                              : 'bg-slate-950/60 hover:bg-slate-800/80 border-slate-800 hover:border-amber-500/40'
+                              ? isLightCanvas
+                                ? 'bg-amber-50 border-amber-500 shadow-md ring-1 ring-amber-400'
+                                : 'bg-amber-950/40 border-amber-500/80 shadow-md shadow-amber-950/50 ring-1 ring-amber-500/50'
+                              : isLightCanvas
+                                ? 'bg-slate-50 hover:bg-amber-50/60 border-slate-200 hover:border-amber-300'
+                                : 'bg-slate-950/60 hover:bg-slate-800/80 border-slate-800 hover:border-amber-500/40'
                           }`}
                         >
-                          <div className="relative w-24 h-16 rounded-lg overflow-hidden bg-slate-900 border border-slate-800 shrink-0">
+                          <div className="relative w-24 h-16 rounded-lg overflow-hidden bg-slate-900 border border-slate-700 shrink-0">
                             <img
                               src={verse.imageUrl}
                               alt={verse.title || 'Promise Verse'}
+                              referrerPolicy="no-referrer"
                               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                             />
                             {isActive ? (
@@ -417,16 +786,16 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
                           </div>
 
                           <div className="flex-1 min-w-0 space-y-0.5">
-                            <h5 className="text-xs font-bold text-slate-100 truncate group-hover:text-amber-300 transition-colors">
+                            <h5 className="text-xs font-bold truncate group-hover:text-amber-600 dark:group-hover:text-amber-300 transition-colors">
                               {verse.title || 'Promise Verse'}
                             </h5>
                             {verse.reference && (
-                              <p className="text-[11px] text-amber-400/90 font-medium truncate">
+                              <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium truncate">
                                 {verse.reference}
                               </p>
                             )}
                             {verse.month && (
-                              <p className="text-[10px] text-slate-400 truncate">
+                              <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
                                 {verse.month}
                               </p>
                             )}
@@ -436,7 +805,9 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
                             <Button size="sm" className={`h-7 px-2.5 rounded-lg text-xs font-bold ${
                               isActive 
                                 ? 'bg-amber-500 text-slate-950 hover:bg-amber-400' 
-                                : 'bg-slate-800 text-slate-200 hover:bg-amber-500 hover:text-slate-950'
+                                : isLightCanvas
+                                  ? 'bg-white border border-slate-300 text-slate-700 hover:bg-amber-500 hover:text-slate-950'
+                                  : 'bg-slate-800 text-slate-200 hover:bg-amber-500 hover:text-slate-950'
                             }`}>
                               {isActive ? 'Live' : 'Present'}
                             </Button>
@@ -446,11 +817,13 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
                     })}
                   </div>
                 ) : (
-                  <div className="text-center py-6 px-3 bg-slate-950/40 rounded-xl border border-slate-800/80 space-y-2">
-                    <Sparkles className="h-8 w-8 text-amber-400/60 mx-auto animate-pulse" />
-                    <p className="text-xs text-slate-200 font-semibold">No Promise Verses Uploaded Yet</p>
-                    <p className="text-[11px] text-slate-400 leading-relaxed">
-                      Upload your monthly promise verse wallpaper images in the <span className="text-amber-400 font-semibold">Promise Verse</span> manager tab to select and present them here in full screen.
+                  <div className={`text-center py-6 px-3 rounded-xl border space-y-2 ${
+                    isLightCanvas ? 'bg-slate-50 border-slate-200' : 'bg-slate-950/40 border-slate-800/80'
+                  }`}>
+                    <Sparkles className="h-8 w-8 text-amber-500/60 mx-auto animate-pulse" />
+                    <p className="text-xs font-semibold">No Promise Verses Uploaded Yet</p>
+                    <p className="text-[11px] text-slate-500 leading-relaxed">
+                      Upload your monthly promise verse wallpaper images in the Promise Verse manager tab to present them here.
                     </p>
                   </div>
                 )}
@@ -465,27 +838,33 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
             className={`gap-2 h-9 rounded-xl font-semibold transition-all border ${
               presState.blackScreen 
                 ? '!bg-rose-600 hover:!bg-rose-700 !text-white border-rose-500 animate-pulse shadow-lg shadow-rose-900/30' 
-                : '!bg-slate-800 hover:!bg-slate-700 !text-slate-100 border-slate-700 hover:border-slate-600'
+                : isLightCanvas
+                  ? '!bg-white hover:!bg-slate-100 !text-slate-800 border-slate-300 shadow-sm'
+                  : '!bg-slate-900 hover:!bg-slate-800 !text-slate-100 border-slate-700 hover:border-slate-600'
             }`}
           >
             {presState.blackScreen ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             {presState.blackScreen ? "Blackout Active" : "Blackout Screen"}
           </Button>
 
-          <Button 
-            onClick={handleLaunchProjector} 
-            className="gap-2 h-9 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-semibold shadow-lg shadow-brand-900/20"
-            size="sm"
-          >
-            <Tv className="h-4 w-4" />
-            Launch Projector Screen
-          </Button>
+          {/* Presentation Live Button with 3 Modes: Presenter View, Full Screen, Windowed */}
+          <PresentationLiveMenu
+            onSelectMode={handleSelectPresentationMode}
+            label="Live Presentation"
+            isLiveActive={!presState.isExited}
+            currentSlideText={presState.slides[presState.currentSlideIndex]?.slice(0, 40)}
+          />
 
           <Button 
             onClick={() => setShowInstructions(!showInstructions)} 
             variant="ghost"
             size="icon"
-            className="h-9 w-9 rounded-xl text-slate-400 hover:text-slate-100 hover:bg-slate-800"
+            className={`h-9 w-9 rounded-xl ${
+              isLightCanvas 
+                ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-200' 
+                : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800'
+            }`}
+            title="Setup guide & instructions"
           >
             <HelpCircle className="h-5 w-5" />
           </Button>
@@ -494,7 +873,11 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
             onClick={handleExit} 
             variant="ghost"
             size="sm"
-            className="gap-1 h-9 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-800"
+            className={`gap-1 h-9 rounded-xl border transition-colors ${
+              isLightCanvas 
+                ? 'text-slate-700 hover:text-slate-900 hover:bg-slate-200 border-slate-300' 
+                : 'text-slate-400 hover:text-white hover:bg-slate-800 border-slate-800'
+            }`}
           >
             <X className="h-4 w-4" />
             Exit Presenter
@@ -699,71 +1082,227 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
       <div className="flex-1 grid grid-cols-12 gap-4 overflow-hidden min-h-0">
         
         {/* Left Side: Playlist / Song list Finder */}
-        <aside className="col-span-12 lg:col-span-3 bg-slate-950 rounded-2xl border border-slate-800 p-4 flex flex-col overflow-hidden">
+        <aside className={`col-span-12 lg:col-span-3 rounded-2xl border p-4 flex flex-col overflow-hidden transition-colors ${
+          isLightCanvas ? 'bg-white border-slate-300 shadow-sm text-slate-900' : 'bg-slate-950 border-slate-800 text-slate-100'
+        }`}>
           <div className="relative mb-3">
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
+            <Search className={`absolute left-3 top-2.5 h-4 w-4 ${isLightCanvas ? 'text-slate-400' : 'text-slate-500'}`} />
             <input 
               type="text" 
-              placeholder="Filter songs by title/no..." 
+              placeholder={activeTab === 'discover' ? 'Search 16,000+ external songs (Tamil/Eng)...' : 'Filter songs by title/no...'} 
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-800 rounded-xl py-2 pl-9 pr-4 text-sm text-slate-200 focus:outline-none focus:border-brand-500 transition-colors"
+              className={`w-full border rounded-xl py-2 pl-9 pr-4 text-sm focus:outline-none focus:border-brand-500 transition-colors ${
+                isLightCanvas 
+                  ? 'bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400' 
+                  : 'bg-slate-900 border-slate-800 text-slate-200'
+              }`}
             />
           </div>
 
-          <Tabs defaultValue="songs" className="w-full flex-1 flex flex-col overflow-hidden" onValueChange={(v) => setActiveTab(v as any)}>
-            <TabsList className="bg-slate-900 border border-slate-800 p-1 rounded-xl grid grid-cols-3 mb-3">
-              <TabsTrigger value="songs" className="rounded-lg text-xs font-semibold py-1.5 data-[state=active]:bg-brand-600 data-[state=active]:text-white">
-                <Music className="h-3 w-3 mr-1" />
-                Songs
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full flex-1 flex flex-col overflow-hidden">
+            <TabsList className={`border p-1 rounded-xl grid grid-cols-4 mb-3 ${
+              isLightCanvas ? 'bg-slate-100 border-slate-200' : 'bg-slate-900 border-slate-800'
+            }`}>
+              <TabsTrigger 
+                value="songs" 
+                className={`rounded-lg text-[11px] font-semibold py-1.5 px-1 transition-all ${
+                  activeTab === 'songs' 
+                    ? '!bg-brand-600 !text-white shadow-sm' 
+                    : isLightCanvas ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Music className="h-3 w-3 mr-1 shrink-0" />
+                <span className="truncate">Songs</span>
               </TabsTrigger>
-              <TabsTrigger value="bible" className="rounded-lg text-xs font-semibold py-1.5 data-[state=active]:bg-brand-600 data-[state=active]:text-white">
-                <BookOpen className="h-3 w-3 mr-1" />
-                Bible
+              <TabsTrigger 
+                value="discover" 
+                className={`rounded-lg text-[11px] font-semibold py-1.5 px-1 transition-all ${
+                  activeTab === 'discover' 
+                    ? '!bg-purple-600 !text-white shadow-sm' 
+                    : isLightCanvas ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Globe className="h-3 w-3 mr-1 shrink-0" />
+                <span className="truncate">External</span>
               </TabsTrigger>
-              <TabsTrigger value="promiseVerse" className="rounded-lg text-xs font-semibold py-1.5 data-[state=active]:bg-amber-600 data-[state=active]:text-white">
-                <Sparkles className="h-3 w-3 mr-1" />
-                Promise
+              <TabsTrigger 
+                value="bible" 
+                className={`rounded-lg text-[11px] font-semibold py-1.5 px-1 transition-all ${
+                  activeTab === 'bible' 
+                    ? '!bg-brand-600 !text-white shadow-sm' 
+                    : isLightCanvas ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <BookOpen className="h-3 w-3 mr-1 shrink-0" />
+                <span className="truncate">Bible</span>
+              </TabsTrigger>
+              <TabsTrigger 
+                value="promiseVerse" 
+                className={`rounded-lg text-[11px] font-semibold py-1.5 px-1 transition-all ${
+                  activeTab === 'promiseVerse' 
+                    ? '!bg-amber-600 !text-white shadow-sm' 
+                    : isLightCanvas ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Sparkles className="h-3 w-3 mr-1 shrink-0" />
+                <span className="truncate">Promise</span>
               </TabsTrigger>
             </TabsList>
 
             <TabsContent value="songs" className="flex-1 overflow-hidden m-0">
               <ScrollArea className="h-full">
                 <div className="space-y-1.5 pr-2">
-                  {filteredSongs.map((song) => (
+                  {filteredSongs.map((song, idx) => (
                     <button
-                      key={song.id || song.songNo}
-                      onClick={() => setActiveSong(song)}
+                      key={song.id || `${song.isExternal ? 'ext' : 'eci'}-${song.songNo ?? idx}-${song.title || idx}`}
+                      onClick={() => {
+                        if (song.isExternal && !hasAcknowledgedExternalCopyright()) {
+                          setPendingLaunchMode(null);
+                          setPendingConsentSong(song);
+                          return;
+                        }
+                        setActiveSong(song);
+                      }}
                       className={`w-full text-left p-3 rounded-xl transition-all border ${
-                        activeSong?.songNo === song.songNo
-                          ? 'bg-brand-950/40 border-brand-500/50 text-white shadow-md'
-                          : 'bg-slate-900/50 border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+                        (activeSong?.id && song.id && activeSong.id === song.id) ||
+                        (activeSong?.songNo && song.songNo && activeSong.songNo === song.songNo)
+                          ? isLightCanvas
+                            ? 'bg-amber-50 border-amber-400 text-slate-900 shadow-sm font-medium'
+                            : 'bg-brand-950/40 border-brand-500/50 text-white shadow-md'
+                          : isLightCanvas
+                            ? 'bg-slate-50 border-slate-200 text-slate-700 hover:text-slate-950 hover:bg-slate-100'
+                            : 'bg-slate-900/50 border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-900'
                       }`}
                     >
-                      <div className="flex justify-between items-start mb-0.5">
-                        <span className={`text-xs font-mono font-bold ${activeSong?.songNo === song.songNo ? 'text-brand-400' : 'text-slate-500'}`}>
-                          #{song.songNo}
-                        </span>
-                        {song.genre && <span className="text-[10px] uppercase tracking-wider text-slate-500">{song.genre}</span>}
+                      <div className="flex justify-between items-start gap-2 mb-0.5">
+                        {song.isExternal ? (
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-500 dark:text-purple-400">
+                            External · TCW
+                          </span>
+                        ) : (
+                          <span className={`text-xs font-mono font-bold ${
+                            (activeSong?.id && song.id && activeSong.id === song.id) ||
+                            (activeSong?.songNo && song.songNo && activeSong.songNo === song.songNo)
+                              ? (isLightCanvas ? 'text-amber-700' : 'text-brand-400') 
+                              : 'text-slate-500'
+                          }`}>
+                            #{song.songNo}
+                          </span>
+                        )}
+                        {song.genre && <span className="text-[10px] uppercase tracking-wider text-slate-400 truncate">{song.genre}</span>}
                       </div>
                       <div className="font-semibold text-sm truncate">{song.title}</div>
                     </button>
                   ))}
                   {filteredSongs.length === 0 && (
-                    <div className="text-center py-8 text-xs text-slate-500">No matching songs found</div>
+                    <div className="text-center py-8 space-y-2">
+                      <div className="text-xs text-slate-400">No matching songs in My Songbook</div>
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('discover')}
+                    className={`w-full mt-2 p-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
+                      isLightCanvas
+                        ? 'bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100'
+                        : 'bg-purple-950/30 border-purple-800/60 text-purple-300 hover:bg-purple-900/40'
+                    }`}
+                  >
+                    <Globe className="h-3.5 w-3.5" />
+                    <span>
+                      {searchQuery
+                        ? `Search "${searchQuery}" in External Songs (TCW)`
+                        : 'Browse External Songs (16,000+ TCW)'}
+                    </span>
+                  </button>
+                </div>
+              </ScrollArea>
+            </TabsContent>
+
+            <TabsContent value="discover" className="flex-1 overflow-hidden m-0">
+              <ScrollArea className="h-full">
+                <div className="space-y-1.5 pr-2">
+                  {externalLoading && (
+                    <div className="flex items-center justify-center gap-2 py-8 text-xs text-purple-400">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span>Loading external songs...</span>
+                    </div>
+                  )}
+                  {!externalLoading && externalError && (
+                    <div className="p-3 rounded-xl border border-red-500/30 bg-red-500/10 text-xs text-red-400 text-center space-y-2">
+                      <p>{externalError}</p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setExternalError(null);
+                          setExternalRetryNonce(n => n + 1);
+                        }}
+                        className="underline font-semibold"
+                      >
+                        Try refreshing
+                      </button>
+                    </div>
+                  )}
+                  {!externalLoading && !externalError && externalResults.map((item) => {
+                    const isSelected = activeSong?.id === `tcw-${item.slug}`;
+                    const isFetching = loadingExternalSlug === item.slug;
+                    return (
+                      <button
+                        key={item.slug}
+                        type="button"
+                        disabled={isFetching}
+                        onClick={() => handleSelectExternalSummary(item)}
+                        className={`w-full text-left p-3 rounded-xl transition-all border ${
+                          isSelected
+                            ? isLightCanvas
+                              ? 'bg-purple-50 border-purple-400 text-slate-900 shadow-sm font-medium'
+                              : 'bg-purple-950/40 border-purple-500/60 text-white shadow-md'
+                            : isLightCanvas
+                              ? 'bg-slate-50 border-slate-200 text-slate-700 hover:text-slate-950 hover:bg-slate-100'
+                              : 'bg-slate-900/50 border-transparent text-slate-300 hover:text-white hover:bg-slate-900'
+                        }`}
+                      >
+                        <div className="flex justify-between items-center gap-2 mb-0.5">
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-500 dark:text-purple-400">
+                            External · TCW
+                          </span>
+                          {isFetching ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] text-purple-400">
+                              <Loader2 className="h-3 w-3 animate-spin" /> Loading...
+                            </span>
+                          ) : item.artist ? (
+                            <span className="text-[10px] text-slate-400 truncate max-w-[110px]">{item.artist}</span>
+                          ) : null}
+                        </div>
+                        <div className="font-semibold text-sm truncate font-tamil">{item.title_ta}</div>
+                        {item.title_en && (
+                          <div className="text-[11px] text-slate-400 truncate capitalize">{item.title_en}</div>
+                        )}
+                      </button>
+                    );
+                  })}
+                  {!externalLoading && !externalError && externalResults.length === 0 && (
+                    <div className="text-center py-8 text-xs text-slate-400">
+                      No external songs found. Try a Tamil or English keyword above.
+                    </div>
                   )}
                 </div>
               </ScrollArea>
             </TabsContent>
 
             <TabsContent value="bible" className="flex-1 overflow-hidden m-0 space-y-4">
-              <div className="space-y-3 bg-slate-900 p-3.5 rounded-xl border border-slate-800">
+              <div className={`space-y-3 p-3.5 rounded-xl border ${
+                isLightCanvas ? 'bg-slate-50 border-slate-200' : 'bg-slate-900 border-slate-800'
+              }`}>
                 <div>
                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Bible Book</label>
                   <select 
                     value={bibleBook}
                     onChange={(e) => setBibleBook(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-brand-500"
+                    className={`w-full border rounded-lg p-2 text-xs focus:outline-none focus:border-brand-500 ${
+                      isLightCanvas ? 'bg-white border-slate-300 text-slate-900' : 'bg-slate-950 border-slate-800 text-white'
+                    }`}
                   >
                     <option value="Genesis">Genesis</option>
                     <option value="Exodus">Exodus</option>
@@ -782,7 +1321,9 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
                       type="number" 
                       value={bibleChapter}
                       onChange={(e) => setBibleChapter(parseInt(e.target.value) || 1)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-white"
+                      className={`w-full border rounded-lg p-2 text-xs focus:outline-none focus:border-brand-500 ${
+                        isLightCanvas ? 'bg-white border-slate-300 text-slate-900' : 'bg-slate-950 border-slate-800 text-white'
+                      }`}
                     />
                   </div>
                   <div>
@@ -791,7 +1332,9 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
                       type="number" 
                       value={bibleVerse}
                       onChange={(e) => setBibleVerse(parseInt(e.target.value) || 1)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-white"
+                      className={`w-full border rounded-lg p-2 text-xs focus:outline-none focus:border-brand-500 ${
+                        isLightCanvas ? 'bg-white border-slate-300 text-slate-900' : 'bg-slate-950 border-slate-800 text-white'
+                      }`}
                     />
                   </div>
                 </div>
@@ -801,15 +1344,17 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
                     value={bibleText}
                     onChange={(e) => setBibleText(e.target.value)}
                     rows={3}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-brand-500"
+                    className={`w-full border rounded-lg p-2 text-xs focus:outline-none focus:border-brand-500 ${
+                      isLightCanvas ? 'bg-white border-slate-300 text-slate-900' : 'bg-slate-950 border-slate-800 text-white'
+                    }`}
                   />
                 </div>
-                <Button onClick={handleProjectBible} className="w-full bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs gap-1.5 h-8 font-semibold">
+                <Button onClick={handleProjectBible} className="w-full bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs gap-1.5 h-8 font-semibold shadow-sm">
                   <Play className="h-3 w-3 fill-current" />
                   Project Verse Now
                 </Button>
               </div>
-              <div className="text-[11px] text-slate-500 italic p-1">
+              <div className="text-[11px] text-slate-400 italic p-1">
                 Tip: You can also project live scriptures directly from the main "Bible" tab reader screen!
               </div>
             </TabsContent>
@@ -820,10 +1365,12 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
                   {promiseVerses.map((pv) => (
                     <div
                       key={pv.id}
-                      className="bg-slate-900 border border-slate-800 rounded-xl p-2.5 space-y-2 hover:border-amber-500/40 transition-colors"
+                      className={`border rounded-xl p-2.5 space-y-2 transition-colors ${
+                        isLightCanvas ? 'bg-slate-50 border-slate-200 hover:border-amber-400' : 'bg-slate-900 border-slate-800 hover:border-amber-500/40'
+                      }`}
                     >
                       <div className="relative aspect-video rounded-lg overflow-hidden bg-black">
-                        <img src={pv.imageUrl} alt={pv.title} className="w-full h-full object-cover" />
+                        <img src={pv.imageUrl} alt={pv.title} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent p-2 flex flex-col justify-end">
                           <div className="text-xs font-bold text-white truncate">{pv.title}</div>
                           <div className="text-[10px] text-amber-300 font-medium truncate">{pv.reference || pv.month}</div>
@@ -846,14 +1393,14 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
                           setPresState(updated);
                           publishPresentationState(updated);
                         }}
-                        className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-lg text-xs h-7 gap-1 cursor-pointer"
+                        className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-lg text-xs h-7 gap-1 cursor-pointer shadow-sm"
                       >
                         <Play className="h-3 w-3 fill-current" /> Project Wallpaper Now
                       </Button>
                     </div>
                   ))}
                   {promiseVerses.length === 0 && (
-                    <div className="text-center py-8 text-xs text-slate-500">
+                    <div className="text-center py-8 text-xs text-slate-400">
                       No promise verse wallpapers uploaded yet. Visit the Promise Verse section to add one!
                     </div>
                   )}
@@ -864,107 +1411,163 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
         </aside>
 
         {/* Center Section: Active Presentation Control Panel */}
-        <section className="col-span-12 lg:col-span-6 bg-slate-950 rounded-2xl border border-slate-800 p-4 flex flex-col overflow-hidden">
+        <section className={`col-span-12 lg:col-span-6 rounded-2xl border p-4 flex flex-col overflow-hidden transition-colors ${
+          isLightCanvas ? 'bg-white border-slate-300 shadow-sm text-slate-900' : 'bg-slate-950 border-slate-800 text-slate-100'
+        }`}>
           
           {/* Active Title Indicator */}
-          <div className="flex justify-between items-center mb-4 shrink-0 bg-slate-900/50 p-3 rounded-xl border border-slate-800">
-            <div>
-              <span className="text-[10px] font-bold font-mono text-brand-400 uppercase tracking-widest">{presState.subtitle || 'Active'}</span>
-              <h2 className="text-base font-bold text-white truncate max-w-sm">{presState.title || 'No song selected'}</h2>
+          <div className={`flex justify-between items-center mb-4 shrink-0 p-3 rounded-xl border ${
+            isLightCanvas ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/50 border-slate-800'
+          }`}>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className={`text-[10px] font-bold font-mono uppercase tracking-widest ${
+                  activeSong?.isExternal || presState.subtitle === 'Tamil Christian World'
+                    ? 'text-purple-500 dark:text-purple-400'
+                    : isLightCanvas ? 'text-brand-600' : 'text-brand-400'
+                }`}>
+                  {activeSong?.isExternal || presState.subtitle === 'Tamil Christian World'
+                    ? `External · ${presState.subtitle || 'Tamil Christian World'}`
+                    : (presState.subtitle || 'Active')}
+                </span>
+                {(activeSong?.isExternal || presState.subtitle === 'Tamil Christian World') && (
+                  <CopyrightInfoIconButton onClick={() => setShowCopyrightModal(true)} />
+                )}
+              </div>
+              <h2 className="text-base font-bold truncate max-w-sm">{presState.title || 'No song selected'}</h2>
             </div>
-            <div className="text-[10px] text-slate-500 font-mono">
+            <div className="text-[10px] text-slate-400 font-mono shrink-0">
               Slide {presState.slides.length > 0 ? presState.currentSlideIndex + 1 : 0} of {presState.slides.length}
             </div>
           </div>
 
           {/* Current Slide Big Visual Preview Card */}
-          <div className={`mb-4 shrink-0 relative aspect-[16/9] border rounded-xl overflow-hidden flex flex-col justify-between p-4 shadow-inner transition-colors duration-300 ${
-            isLightCanvas 
-              ? 'bg-white border-slate-300 text-slate-900' 
-              : 'bg-slate-900 border-slate-800 text-white'
-          }`}>
-            <div className={`flex justify-between items-center text-[10px] uppercase font-mono tracking-wider ${
-              isLightCanvas ? 'text-slate-600 font-medium' : 'opacity-40 text-slate-300'
-            }`}>
-              <span>{presState.subtitle || 'Projection Preview'}</span>
-              <span className="font-bold flex items-center gap-1.5">
-                <span className={`h-2 w-2 rounded-full ${isLightCanvas ? 'bg-amber-500' : 'bg-brand-500'} animate-pulse`} />
-                LIVE OUTPUT PREVIEW ({isLightCanvas ? 'LIGHT CANVAS' : 'DARK CANVAS'})
-              </span>
-            </div>
-            
-            <div 
-              className={`flex-1 flex ${alignmentClass} py-2 px-4 ${presState.blackScreen ? 'opacity-0' : 'opacity-100'}`} 
-              style={{ transition: 'opacity 0.2s' }}
-            >
-              {presState.activeType === 'promiseVerse' && presState.promiseVerseUrl ? (
-                <div className="w-full h-full flex items-center justify-center relative overflow-hidden">
-                  <img 
-                    src={presState.promiseVerseUrl} 
-                    alt={presState.title || 'Promise Verse Wallpaper'} 
-                    className="max-h-full max-w-full object-contain rounded-lg shadow-lg border border-slate-700/50" 
-                  />
+          {(() => {
+            const currentBgTheme = getBackgroundTheme(presState.backgroundThemeId);
+            const monitorBgStyle = presState.blackScreen
+              ? { backgroundColor: '#000000' }
+              : { background: currentBgTheme.backgroundStyle };
+            const monitorTextColor = presState.blackScreen
+              ? 'transparent'
+              : (currentBgTheme.textColor || '#ffffff');
+            const monitorShadow = presState.blackScreen ? 'none' : (currentBgTheme.textShadow || '0 2px 8px rgba(0,0,0,0.8)');
+
+            return (
+              <div 
+                className={`mb-4 shrink-0 relative aspect-[16/9] border rounded-xl overflow-hidden flex flex-col justify-between p-4 shadow-inner transition-all duration-300 ${
+                  isLightCanvas 
+                    ? 'border-slate-300 ring-1 ring-slate-200' 
+                    : 'border-slate-800'
+                }`}
+                style={monitorBgStyle}
+              >
+                <div className={`flex justify-between items-center text-[10px] uppercase font-mono tracking-wider ${
+                  isLightCanvas ? 'text-slate-600 font-medium' : 'text-white/70 drop-shadow-sm'
+                }`}>
+                  <span className="flex items-center gap-2">
+                    <span>{presState.subtitle || 'Projection Preview'}</span>
+                    {!presState.blackScreen && (
+                      <span className="px-1.5 py-0.5 rounded bg-black/40 text-white/90 text-[9px] font-sans border border-white/10">
+                        {currentBgTheme.name}
+                      </span>
+                    )}
+                  </span>
+                  <span className="font-bold flex items-center gap-1.5">
+                    <span className={`h-2 w-2 rounded-full ${isLightCanvas ? 'bg-amber-500' : 'bg-emerald-400'} animate-pulse`} />
+                    LIVE OUTPUT ({isLightCanvas ? 'LIGHT CANVAS' : 'DARK CANVAS'})
+                  </span>
                 </div>
-              ) : (
-                <p 
-                  className={`${fontClass} italic max-w-xl break-words whitespace-pre-wrap leading-snug transition-all duration-200 ${
-                    isLightCanvas ? 'text-slate-900 font-semibold' : 'text-white'
-                  }`}
-                  style={{ fontSize: `${Math.max(14, Math.min(42, Math.round((presState.fontSize || 48) * 0.45)))}px` }}
+                
+                <div 
+                  className={`flex-1 min-h-0 overflow-y-auto flex ${alignmentClass} py-2 px-4 ${presState.blackScreen ? 'opacity-0' : 'opacity-100'}`} 
+                  style={{ transition: 'opacity 0.2s' }}
                 >
-                  {presState.slides[presState.currentSlideIndex] || '--- Screen Blank ---'}
-                </p>
-              )}
-            </div>
+                  {presState.activeType === 'promiseVerse' && presState.promiseVerseUrl ? (
+                    <div className="w-full h-full flex items-center justify-center relative overflow-hidden">
+                      <img 
+                        src={presState.promiseVerseUrl} 
+                        alt={presState.title || 'Promise Verse Wallpaper'} 
+                        referrerPolicy="no-referrer"
+                        className="max-h-full max-w-full object-contain rounded-lg shadow-lg border border-slate-700/50" 
+                      />
+                    </div>
+                  ) : (() => {
+                    const currentSlideText = presState.slides[presState.currentSlideIndex] || '--- Screen Blank ---';
+                    const lineCount = currentSlideText.split('\n').length;
+                    const maxPreviewPx = lineCount >= 5 ? 20 : lineCount >= 4 ? 24 : 34;
+                    const scaledPx = Math.max(14, Math.min(maxPreviewPx, Math.round((presState.fontSize || 48) * 0.42)));
+                    return (
+                      <p 
+                        className={`${fontClass} italic max-w-2xl w-full break-words whitespace-pre-wrap leading-snug transition-all duration-200 my-auto`}
+                        style={{ 
+                          fontSize: `${scaledPx}px`,
+                          fontWeight: fontWeightVal,
+                          color: monitorTextColor,
+                          textShadow: monitorShadow
+                        }}
+                      >
+                        {currentSlideText}
+                      </p>
+                    );
+                  })()}
+                </div>
 
-            {presState.blackScreen && (
-              <div className="absolute inset-0 bg-black flex items-center justify-center z-10">
-                <Badge variant="destructive" className="animate-pulse tracking-widest text-xs uppercase rounded-full px-3 py-1 font-mono font-bold">
-                  BLACKOUT SCREEN ACTIVE
-                </Badge>
+                {presState.blackScreen && (
+                  <div className="absolute inset-0 bg-black flex items-center justify-center z-10">
+                    <Badge variant="destructive" className="animate-pulse tracking-widest text-xs uppercase rounded-full px-3 py-1 font-mono font-bold">
+                      BLACKOUT SCREEN ACTIVE
+                    </Badge>
+                  </div>
+                )}
+
+                <div className={`flex justify-between items-center text-[10px] font-mono ${
+                  isLightCanvas ? 'text-slate-600 font-medium' : 'text-white/70 drop-shadow-sm'
+                }`}>
+                  <span className="truncate max-w-xs">{presState.title || 'Ready'}</span>
+                  <span>{presState.slides.length > 0 ? `${presState.currentSlideIndex + 1} / ${presState.slides.length}` : '0 / 0'}</span>
+                </div>
               </div>
-            )}
-
-            <div className={`flex justify-between items-center text-[10px] font-mono ${
-              isLightCanvas ? 'text-slate-600 font-medium' : 'opacity-40 text-slate-300'
-            }`}>
-              <span className="truncate max-w-xs">{presState.title || 'Ready'}</span>
-              <span>{presState.slides.length > 0 ? `${presState.currentSlideIndex + 1} / ${presState.slides.length}` : '0 / 0'}</span>
-            </div>
-          </div>
+            );
+          })()}
 
           {/* Interactive Slides Grid List */}
-          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 shrink-0">Click to Select Slide:</h3>
-          <ScrollArea className="flex-1 bg-slate-900/30 rounded-xl border border-slate-800/80 p-3 min-h-0">
+          <h3 className={`text-xs font-bold uppercase tracking-widest mb-2 shrink-0 ${
+            isLightCanvas ? 'text-slate-600' : 'text-slate-400'
+          }`}>
+            Click to Select Slide:
+          </h3>
+          <ScrollArea className={`flex-1 rounded-xl border p-3 min-h-0 ${
+            isLightCanvas ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/30 border-slate-800/80'
+          }`}>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pr-2">
               {presState.slides.map((slide, idx) => (
                 <button
                   key={idx}
                   onClick={() => handleSelectSlide(idx)}
-                  className={`relative p-4 rounded-xl text-left border transition-all h-28 flex flex-col justify-between overflow-hidden group ${
+                  className={`relative p-4 rounded-xl text-left border transition-all min-h-[7.5rem] h-auto flex flex-col justify-between gap-2 group ${
                     presState.currentSlideIndex === idx && !presState.blackScreen
                       ? isLightCanvas
                         ? 'bg-amber-100/90 border-amber-500 text-slate-950 ring-2 ring-amber-400/50 shadow-md font-semibold'
                         : 'bg-brand-950/20 border-brand-500 text-white ring-2 ring-brand-500/30 shadow-md shadow-brand-950/35'
                       : isLightCanvas
-                        ? 'bg-slate-100 border-slate-300 hover:border-slate-400 text-slate-900'
+                        ? 'bg-white border-slate-200 hover:border-slate-300 text-slate-900'
                         : 'bg-slate-900/60 border-slate-800 hover:border-slate-700 text-slate-300'
                   }`}
                 >
-                  <span className={`absolute top-2 right-3 text-[10px] font-bold font-mono ${
-                    isLightCanvas ? 'text-slate-500' : 'text-slate-500 group-hover:text-slate-400'
+                  <span className={`absolute top-2.5 right-3 text-[10px] font-bold font-mono ${
+                    isLightCanvas ? 'text-slate-400' : 'text-slate-500 group-hover:text-slate-400'
                   }`}>
                     Slide {idx + 1}
                   </span>
                   
-                  <div className={`text-xs leading-relaxed line-clamp-3 ${fontClass} font-medium mt-3 whitespace-pre-wrap ${
+                  <div className={`text-xs sm:text-[13px] leading-relaxed ${fontClass} font-medium mt-3 pr-8 whitespace-pre-wrap break-words w-full ${
                     isLightCanvas ? 'text-slate-900 font-semibold' : ''
                   }`}>
                     {slide}
                   </div>
                   
-                  <div className={`mt-1 flex items-center gap-1.5 text-[9px] font-mono uppercase tracking-wider ${
-                    isLightCanvas ? 'text-slate-600' : 'text-slate-500'
+                  <div className={`mt-1 flex items-center gap-1.5 text-[9px] font-mono uppercase tracking-wider shrink-0 ${
+                    isLightCanvas ? 'text-slate-500' : 'text-slate-500'
                   }`}>
                     <span className={`h-1.5 w-1.5 rounded-full ${isLightCanvas ? 'bg-amber-500' : 'bg-brand-500'}`} />
                     ECI LYRIC BLOCK
@@ -972,7 +1575,7 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
                 </button>
               ))}
               {presState.slides.length === 0 && (
-                <div className="col-span-2 text-center py-12 text-sm text-slate-500 font-medium">
+                <div className="col-span-2 text-center py-12 text-sm text-slate-400 font-medium">
                   Select a song from the list to display slides here
                 </div>
               )}
@@ -980,18 +1583,24 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
           </ScrollArea>
 
           {/* Slide Switcher Controls Bottom bar */}
-          <div className="mt-4 pt-3 border-t border-slate-800 flex justify-between items-center shrink-0">
+          <div className={`mt-4 pt-3 border-t flex justify-between items-center shrink-0 ${
+            isLightCanvas ? 'border-slate-200' : 'border-slate-800'
+          }`}>
             <Button
               onClick={handlePrev}
               disabled={presState.currentSlideIndex === 0}
               variant="ghost"
               size="sm"
-              className="gap-1.5 rounded-xl border border-slate-700 !bg-slate-800 !text-slate-100 hover:!bg-slate-700 disabled:opacity-30"
+              className={`gap-1.5 rounded-xl border disabled:opacity-30 ${
+                isLightCanvas
+                  ? '!bg-white border-slate-300 !text-slate-800 hover:!bg-slate-100 shadow-sm'
+                  : '!bg-slate-800 border-slate-700 !text-slate-100 hover:!bg-slate-700'
+              }`}
             >
               <ChevronLeft className="h-4 w-4" /> Prev Slide
             </Button>
             
-            <span className="text-xs font-mono font-bold text-slate-400">
+            <span className={`text-xs font-mono font-bold ${isLightCanvas ? 'text-slate-600' : 'text-slate-400'}`}>
               SLIDE {presState.slides.length > 0 ? presState.currentSlideIndex + 1 : 0} OF {presState.slides.length}
             </span>
 
@@ -1000,7 +1609,11 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
               disabled={presState.currentSlideIndex >= presState.slides.length - 1}
               variant="ghost"
               size="sm"
-              className="gap-1.5 rounded-xl border border-slate-700 !bg-slate-800 !text-slate-100 hover:!bg-slate-700 disabled:opacity-30"
+              className={`gap-1.5 rounded-xl border disabled:opacity-30 ${
+                isLightCanvas
+                  ? '!bg-white border-slate-300 !text-slate-800 hover:!bg-slate-100 shadow-sm'
+                  : '!bg-slate-800 border-slate-700 !text-slate-100 hover:!bg-slate-700'
+              }`}
             >
               Next Slide <ChevronRight className="h-4 w-4" />
             </Button>
@@ -1010,74 +1623,179 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
         {/* Right Section: Presentation Controls & Screen adjustments */}
         <section className="col-span-12 lg:col-span-3 space-y-4 overflow-y-auto">
           
-          {/* Theme Adjustments */}
-          <Card className="bg-slate-950 border-slate-800 rounded-2xl text-slate-200">
+          {/* Canvas Theme Settings (Entire App & Projector) */}
+          <Card className={`rounded-2xl border transition-colors ${
+            isLightCanvas ? 'bg-white border-slate-300 shadow-sm text-slate-900' : 'bg-slate-950 border-slate-800 text-slate-200'
+          }`}>
             <CardHeader className="py-4">
-              <CardTitle className="text-xs font-bold text-slate-400 uppercase tracking-wider">Projector Theme</CardTitle>
+              <CardTitle className={`text-xs font-bold uppercase tracking-wider ${
+                isLightCanvas ? 'text-slate-700' : 'text-slate-400'
+              }`}>
+                Canvas Theme (App & Projector)
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-2">
                 <Button
-                  onClick={() => setPresState(p => ({ ...p, theme: 'dark' }))}
+                  onClick={() => handleCanvasThemeChange('dark')}
                   variant="ghost"
                   className={`rounded-xl text-xs gap-2 transition-all border ${
                     presState.theme === 'dark' 
-                      ? '!bg-brand-950/80 border-brand-500 !text-brand-400 shadow-inner font-bold' 
-                      : '!bg-slate-900 border-slate-800 !text-slate-300 hover:!text-slate-100 hover:!bg-slate-800'
+                      ? '!bg-slate-900 border-brand-500 !text-white font-bold shadow-md' 
+                      : isLightCanvas
+                        ? '!bg-slate-100 border-slate-300 !text-slate-700 hover:!bg-slate-200'
+                        : '!bg-slate-900 border-slate-800 !text-slate-300 hover:!text-slate-100 hover:!bg-slate-800'
                   }`}
                 >
-                  <Moon className="h-4 w-4" /> Dark Canvas
+                  <Moon className="h-4 w-4 text-brand-400" /> Dark Canvas
                 </Button>
                 <Button
-                  onClick={() => setPresState(p => ({ ...p, theme: 'light' }))}
+                  onClick={() => handleCanvasThemeChange('light')}
                   variant="ghost"
                   className={`rounded-xl text-xs gap-2 transition-all border ${
                     presState.theme === 'light' 
-                      ? '!bg-amber-400 border-amber-300 !text-slate-950 font-bold shadow-md' 
-                      : '!bg-slate-900 border-slate-800 !text-slate-300 hover:!text-slate-100 hover:!bg-slate-800'
+                      ? '!bg-amber-400 border-amber-500 !text-slate-950 font-bold shadow-md' 
+                      : isLightCanvas
+                        ? '!bg-slate-100 border-slate-300 !text-slate-700 hover:!bg-slate-200'
+                        : '!bg-slate-900 border-slate-800 !text-slate-300 hover:!text-slate-100 hover:!bg-slate-800'
                   }`}
                 >
-                  <Sun className="h-4 w-4" /> Light Canvas
+                  <Sun className="h-4 w-4 text-amber-600" /> Light Canvas
                 </Button>
               </div>
             </CardContent>
           </Card>
 
+          {/* 10 Lyrics Background Themes (Random & Category Themes) */}
+          <Card className={`rounded-2xl border transition-colors ${
+            isLightCanvas ? 'bg-white border-slate-300 shadow-sm text-slate-900' : 'bg-slate-950 border-slate-800 text-slate-200'
+          }`}>
+            <CardHeader className="py-3.5 pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className={`text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 ${
+                  isLightCanvas ? 'text-slate-700' : 'text-slate-400'
+                }`}>
+                  <Palette className="h-3.5 w-3.5 text-purple-400" />
+                  Lyrics Background Themes
+                </CardTitle>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleRandomBackgroundTheme}
+                  className={`h-7 px-2.5 rounded-lg text-[11px] font-bold gap-1 transition-all cursor-pointer ${
+                    isLightCanvas
+                      ? 'bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100'
+                      : 'bg-purple-950/40 border-purple-800 text-purple-300 hover:bg-purple-900/60'
+                  }`}
+                  title="Choose a random background theme"
+                >
+                  <Shuffle className="h-3 w-3" />
+                  Random
+                </Button>
+              </div>
+              <CardDescription className="text-[11px]">
+                10 immersive backdrop gradients & effects for worship lyrics
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2.5 pt-1">
+              <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto pr-1">
+                {LYRIC_BACKGROUND_THEMES.map((theme) => {
+                  const isSelected = (presState.backgroundThemeId || 'midnight-sanctuary') === theme.id;
+                  return (
+                    <button
+                      key={theme.id}
+                      onClick={() => handleBackgroundThemeChange(theme.id)}
+                      className={`p-2 rounded-xl border text-left flex flex-col justify-between h-16 transition-all overflow-hidden relative group cursor-pointer ${
+                        isSelected
+                          ? 'border-brand-400 ring-2 ring-brand-500/50 shadow-md scale-[1.02]'
+                          : isLightCanvas
+                            ? 'border-slate-200 hover:border-slate-400'
+                            : 'border-slate-800 hover:border-slate-700'
+                      }`}
+                      style={{ background: theme.previewBg }}
+                    >
+                      <div className="flex items-start justify-between w-full z-10">
+                        <span className="text-[11px] font-bold text-white drop-shadow-md truncate leading-tight">
+                          {theme.name}
+                        </span>
+                        {isSelected && (
+                          <span className="h-2 w-2 rounded-full bg-brand-400 ring-2 ring-white/60 shadow-sm shrink-0" />
+                        )}
+                      </div>
+                      <div className="flex items-center justify-between w-full z-10">
+                        <span className="text-[9px] text-white/80 drop-shadow-sm font-anek truncate">
+                          {theme.nameTa}
+                        </span>
+                        <span className="text-[8px] font-mono px-1 rounded bg-black/40 text-white/90 uppercase border border-white/10">
+                          {theme.category}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Typography Settings */}
-          <Card className="bg-slate-950 border-slate-800 rounded-2xl text-slate-200">
+          <Card className={`rounded-2xl border transition-colors ${
+            isLightCanvas ? 'bg-white border-slate-300 shadow-sm text-slate-900' : 'bg-slate-950 border-slate-800 text-slate-200'
+          }`}>
             <CardHeader className="py-4">
-              <CardTitle className="text-xs font-bold text-slate-400 uppercase tracking-wider">Projector Typography</CardTitle>
+              <CardTitle className={`text-xs font-bold uppercase tracking-wider ${
+                isLightCanvas ? 'text-slate-700' : 'text-slate-400'
+              }`}>
+                Projector Typography
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               
               {/* Font Family & Tamil Fonts */}
               <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-2">Typography & Tamil Fonts</label>
-                <div className="grid grid-cols-2 gap-1.5 bg-slate-900 border border-slate-800 p-1.5 rounded-xl text-xs">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Typography & Tamil Fonts</label>
+                <div className={`grid grid-cols-2 gap-1.5 border p-1.5 rounded-xl text-xs ${
+                  isLightCanvas ? 'bg-slate-50 border-slate-200' : 'bg-slate-900 border-slate-800'
+                }`}>
                   <button 
                     onClick={() => handleFontFamilyChange('font-baloo')}
-                    className={`py-2 px-2.5 rounded-lg font-baloo text-left transition-all ${presState.fontFamily === 'font-baloo' ? 'bg-brand-600 text-white font-bold shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
+                    className={`py-2 px-2.5 rounded-lg font-baloo text-left transition-all ${
+                      presState.fontFamily === 'font-baloo' 
+                        ? 'bg-brand-600 text-white font-bold shadow-sm' 
+                        : isLightCanvas ? 'text-slate-700 hover:bg-slate-200' : 'text-slate-400 hover:text-slate-200'
+                    }`}
                   >
                     <div className="text-[11px] font-bold">Baloo Thambi</div>
                     <div className="text-[9px] opacity-75 truncate">பாலூ தம்பி</div>
                   </button>
                   <button 
                     onClick={() => handleFontFamilyChange('font-anek')}
-                    className={`py-2 px-2.5 rounded-lg font-anek text-left transition-all ${presState.fontFamily === 'font-anek' ? 'bg-brand-600 text-white font-bold shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
+                    className={`py-2 px-2.5 rounded-lg font-anek text-left transition-all ${
+                      presState.fontFamily === 'font-anek' 
+                        ? 'bg-brand-600 text-white font-bold shadow-sm' 
+                        : isLightCanvas ? 'text-slate-700 hover:bg-slate-200' : 'text-slate-400 hover:text-slate-200'
+                    }`}
                   >
                     <div className="text-[11px] font-bold">Anek Tamil</div>
                     <div className="text-[9px] opacity-75 truncate">அனேக் தமிழ்</div>
                   </button>
                   <button 
                     onClick={() => handleFontFamilyChange('font-tiro')}
-                    className={`py-2 px-2.5 rounded-lg font-tiro text-left transition-all ${presState.fontFamily === 'font-tiro' ? 'bg-brand-600 text-white font-bold shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
+                    className={`py-2 px-2.5 rounded-lg font-tiro text-left transition-all ${
+                      presState.fontFamily === 'font-tiro' 
+                        ? 'bg-brand-600 text-white font-bold shadow-sm' 
+                        : isLightCanvas ? 'text-slate-700 hover:bg-slate-200' : 'text-slate-400 hover:text-slate-200'
+                    }`}
                   >
                     <div className="text-[11px] font-bold">Tiro Tamil</div>
                     <div className="text-[9px] opacity-75 truncate">திரோ தமிழ்</div>
                   </button>
                   <button 
                     onClick={() => handleFontFamilyChange('font-sans')}
-                    className={`py-2 px-2.5 rounded-lg font-sans text-left transition-all ${presState.fontFamily === 'font-sans' ? 'bg-brand-600 text-white font-bold shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
+                    className={`py-2 px-2.5 rounded-lg font-sans text-left transition-all ${
+                      presState.fontFamily === 'font-sans' 
+                        ? 'bg-brand-600 text-white font-bold shadow-sm' 
+                        : isLightCanvas ? 'text-slate-700 hover:bg-slate-200' : 'text-slate-400 hover:text-slate-200'
+                    }`}
                   >
                     <div className="text-[11px] font-bold">Standard Sans</div>
                     <div className="text-[9px] opacity-75">Clean System</div>
@@ -1087,23 +1805,47 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
 
               {/* Font Weight */}
               <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-2">Font Weight (Boldness)</label>
-                <div className="grid grid-cols-3 gap-1 bg-slate-900 border border-slate-800 p-1 rounded-xl text-xs">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Font Weight (Boldness)</label>
+                <div className={`grid grid-cols-4 gap-1 border p-1 rounded-xl text-xs ${
+                  isLightCanvas ? 'bg-slate-50 border-slate-200' : 'bg-slate-900 border-slate-800'
+                }`}>
                   <button 
-                    onClick={() => setPresState(prev => ({ ...prev, fontWeight: '800' }))}
-                    className={`py-1.5 rounded-lg font-extrabold text-center ${presState.fontWeight === '800' ? 'bg-brand-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
+                    onClick={() => handleFontWeightChange('800')}
+                    className={`py-1.5 rounded-lg font-extrabold text-center transition-colors ${
+                      presState.fontWeight === '800' 
+                        ? 'bg-brand-600 text-white font-bold shadow-sm' 
+                        : isLightCanvas ? 'text-slate-700 hover:bg-slate-200' : 'text-slate-400 hover:text-slate-200'
+                    }`}
                   >
-                    Extra Bold
+                    Extra
                   </button>
                   <button 
-                    onClick={() => setPresState(prev => ({ ...prev, fontWeight: '700' }))}
-                    className={`py-1.5 rounded-lg font-bold text-center ${presState.fontWeight === '700' || !presState.fontWeight ? 'bg-brand-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
+                    onClick={() => handleFontWeightChange('700')}
+                    className={`py-1.5 rounded-lg font-bold text-center transition-colors ${
+                      presState.fontWeight === '700' || !presState.fontWeight 
+                        ? 'bg-brand-600 text-white font-bold shadow-sm' 
+                        : isLightCanvas ? 'text-slate-700 hover:bg-slate-200' : 'text-slate-400 hover:text-slate-200'
+                    }`}
                   >
                     Bold
                   </button>
                   <button 
-                    onClick={() => setPresState(prev => ({ ...prev, fontWeight: '400' }))}
-                    className={`py-1.5 rounded-lg font-normal text-center ${presState.fontWeight === '400' ? 'bg-brand-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
+                    onClick={() => handleFontWeightChange('600')}
+                    className={`py-1.5 rounded-lg font-semibold text-center transition-colors ${
+                      presState.fontWeight === '600' 
+                        ? 'bg-brand-600 text-white font-bold shadow-sm' 
+                        : isLightCanvas ? 'text-slate-700 hover:bg-slate-200' : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    Semi
+                  </button>
+                  <button 
+                    onClick={() => handleFontWeightChange('400')}
+                    className={`py-1.5 rounded-lg font-normal text-center transition-colors ${
+                      presState.fontWeight === '400' 
+                        ? 'bg-brand-600 text-white font-bold shadow-sm' 
+                        : isLightCanvas ? 'text-slate-700 hover:bg-slate-200' : 'text-slate-400 hover:text-slate-200'
+                    }`}
                   >
                     Regular
                   </button>
@@ -1112,23 +1854,37 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
 
               {/* Alignment */}
               <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-2">Alignment</label>
-                <div className="grid grid-cols-3 gap-1 bg-slate-900 border border-slate-800 p-1 rounded-xl text-xs">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Alignment</label>
+                <div className={`grid grid-cols-3 gap-1 border p-1 rounded-xl text-xs ${
+                  isLightCanvas ? 'bg-slate-50 border-slate-200' : 'bg-slate-900 border-slate-800'
+                }`}>
                   <button 
                     onClick={() => handleAlignmentChange('left')}
-                    className={`py-1.5 rounded-lg flex items-center justify-center ${presState.alignment === 'left' ? 'bg-brand-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
+                    className={`py-1.5 rounded-lg flex items-center justify-center ${
+                      presState.alignment === 'left' 
+                        ? 'bg-brand-600 text-white' 
+                        : isLightCanvas ? 'text-slate-700 hover:bg-slate-200' : 'text-slate-400 hover:text-slate-200'
+                    }`}
                   >
                     <AlignLeft className="h-4 w-4" />
                   </button>
                   <button 
                     onClick={() => handleAlignmentChange('center')}
-                    className={`py-1.5 rounded-lg flex items-center justify-center ${presState.alignment === 'center' ? 'bg-brand-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
+                    className={`py-1.5 rounded-lg flex items-center justify-center ${
+                      presState.alignment === 'center' 
+                        ? 'bg-brand-600 text-white' 
+                        : isLightCanvas ? 'text-slate-700 hover:bg-slate-200' : 'text-slate-400 hover:text-slate-200'
+                    }`}
                   >
                     <AlignCenter className="h-4 w-4" />
                   </button>
                   <button 
                     onClick={() => handleAlignmentChange('right')}
-                    className={`py-1.5 rounded-lg flex items-center justify-center ${presState.alignment === 'right' ? 'bg-brand-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
+                    className={`py-1.5 rounded-lg flex items-center justify-center ${
+                      presState.alignment === 'right' 
+                        ? 'bg-brand-600 text-white' 
+                        : isLightCanvas ? 'text-slate-700 hover:bg-slate-200' : 'text-slate-400 hover:text-slate-200'
+                    }`}
                   >
                     <AlignRight className="h-4 w-4" />
                   </button>
@@ -1138,15 +1894,21 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
               {/* Font Size Slider & Quick Presets */}
               <div>
                 <div className="flex justify-between items-center mb-2">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Font Size</label>
-                  <span className="text-xs font-bold font-mono text-brand-400">{presState.fontSize || 48}px</span>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Font Size</label>
+                  <span className={`text-xs font-bold font-mono ${isLightCanvas ? 'text-brand-700' : 'text-brand-400'}`}>
+                    {presState.fontSize || 48}px
+                  </span>
                 </div>
                 
                 <div className="px-1 flex items-center gap-2 mb-3">
                   <button
                     type="button"
                     onClick={() => handleFontSizeChange(Math.max(20, (presState.fontSize || 48) - 4))}
-                    className="h-7 w-7 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800 flex items-center justify-center font-bold text-xs"
+                    className={`h-7 w-7 rounded-lg border flex items-center justify-center font-bold text-xs ${
+                      isLightCanvas 
+                        ? 'bg-slate-100 border-slate-300 text-slate-800 hover:bg-slate-200' 
+                        : 'bg-slate-900 border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800'
+                    }`}
                     title="Decrease font size"
                   >
                     <Minus className="h-3.5 w-3.5" />
@@ -1159,13 +1921,17 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
                     step="2"
                     value={presState.fontSize || 48}
                     onChange={(e) => handleFontSizeChange(Number(e.target.value))}
-                    className="flex-1 cursor-pointer h-1.5 bg-slate-800 rounded-lg appearance-none accent-brand-500"
+                    className="flex-1 cursor-pointer h-1.5 bg-slate-700 rounded-lg appearance-none accent-brand-500"
                   />
 
                   <button
                     type="button"
                     onClick={() => handleFontSizeChange(Math.min(120, (presState.fontSize || 48) + 4))}
-                    className="h-7 w-7 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800 flex items-center justify-center font-bold text-xs"
+                    className={`h-7 w-7 rounded-lg border flex items-center justify-center font-bold text-xs ${
+                      isLightCanvas 
+                        ? 'bg-slate-100 border-slate-300 text-slate-800 hover:bg-slate-200' 
+                        : 'bg-slate-900 border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800'
+                    }`}
                     title="Increase font size"
                   >
                     <Plus className="h-3.5 w-3.5" />
@@ -1182,7 +1948,9 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
                       className={`py-1 rounded-lg border text-center transition-all ${
                         presState.fontSize === size
                           ? '!bg-brand-600 border-brand-500 !text-white font-bold'
-                          : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                          : isLightCanvas
+                            ? 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-200'
+                            : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
                       }`}
                     >
                       {size}px
@@ -1195,24 +1963,28 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
           </Card>
 
           {/* Device Sync Info */}
-          <Card className="bg-slate-950 border-slate-800 rounded-2xl text-slate-300">
+          <Card className={`rounded-2xl border transition-colors ${
+            isLightCanvas ? 'bg-white border-slate-300 shadow-sm text-slate-900' : 'bg-slate-950 border-slate-800 text-slate-300'
+          }`}>
             <CardHeader className="py-4">
-              <CardTitle className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+              <CardTitle className={`text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 ${
+                isLightCanvas ? 'text-slate-700' : 'text-slate-400'
+              }`}>
                 <span className="h-2 w-2 rounded-full bg-emerald-500 animate-ping" />
                 Connection Status
               </CardTitle>
             </CardHeader>
             <CardContent className="text-xs space-y-3">
-              <div className="flex justify-between py-1 border-b border-slate-800">
-                <span className="text-slate-500">Local Channel</span>
-                <span className="text-emerald-400 font-semibold font-mono">eci-presentation</span>
+              <div className={`flex justify-between py-1 border-b ${isLightCanvas ? 'border-slate-200' : 'border-slate-800'}`}>
+                <span className="text-slate-400">Local Channel</span>
+                <span className="text-emerald-600 dark:text-emerald-400 font-semibold font-mono">eci-presentation</span>
               </div>
-              <div className="flex justify-between py-1 border-b border-slate-800">
-                <span className="text-slate-500">Worship Screen</span>
-                <span className="text-brand-400 font-semibold font-mono">Ready to stream</span>
+              <div className={`flex justify-between py-1 border-b ${isLightCanvas ? 'border-slate-200' : 'border-slate-800'}`}>
+                <span className="text-slate-400">Worship Screen</span>
+                <span className="text-brand-600 dark:text-brand-400 font-semibold font-mono">Ready to stream</span>
               </div>
-              <p className="text-[11px] leading-relaxed text-slate-500 pt-1">
-                This utilizes a zero-latency modern browser network layer to broadcast changes to any connected display instantly without page refreshes.
+              <p className="text-[11px] leading-relaxed text-slate-400 pt-1">
+                Zero-latency modern browser network layer broadcasts changes to any connected display instantly.
               </p>
             </CardContent>
           </Card>
@@ -1220,6 +1992,30 @@ export function PresenterControl({ songs, initialActiveSong, onExit, isDarkMode 
         </section>
 
       </div>
+
+      <ExternalCopyrightConsentDialog
+        song={pendingConsentSong}
+        isOpen={!!pendingConsentSong}
+        onConfirm={async (song) => {
+          const mode = pendingLaunchMode;
+          setPendingConsentSong(null);
+          setPendingLaunchMode(null);
+          if (mode) {
+            await launchPresentationMode(mode);
+          } else {
+            setActiveSong(song);
+          }
+        }}
+        onCancel={() => {
+          setPendingConsentSong(null);
+          setPendingLaunchMode(null);
+        }}
+      />
+
+      <CopyrightNoticeModal
+        isOpen={showCopyrightModal}
+        onClose={() => setShowCopyrightModal(false)}
+      />
     </div>
   );
 }
