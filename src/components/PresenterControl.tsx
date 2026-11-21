@@ -1290,52 +1290,52 @@ export function PresenterControl({
           </div>
 
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full flex-1 flex flex-col overflow-hidden">
-            <TabsList className={`border p-1 rounded-xl grid grid-cols-4 mb-3 ${
+            <TabsList className={`!h-auto w-full border p-1.5 rounded-2xl grid grid-cols-2 gap-1.5 mb-3.5 ${
               isLightCanvas ? 'bg-slate-100 border-slate-200' : 'bg-slate-900 border-slate-800'
             }`}>
-              <TabsTrigger 
-                value="songs" 
-                className={`rounded-lg text-[11px] font-semibold py-1.5 px-1 transition-all ${
-                  activeTab === 'songs' 
-                    ? '!bg-brand-600 !text-white shadow-sm' 
-                    : isLightCanvas ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200'
+              <TabsTrigger
+                value="songs"
+                className={`!h-9 w-full rounded-xl text-xs font-semibold px-3 py-2 gap-2 transition-all cursor-pointer ${
+                  activeTab === 'songs'
+                    ? '!bg-brand-600 !text-white shadow-sm'
+                    : isLightCanvas ? 'text-slate-600 hover:text-slate-900 hover:bg-white/60' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
                 }`}
               >
-                <Music className="h-3 w-3 mr-1 shrink-0" />
-                <span className="truncate">Songs</span>
+                <Music className="size-3.5 shrink-0" />
+                <span>Songs</span>
               </TabsTrigger>
-              <TabsTrigger 
-                value="discover" 
-                className={`rounded-lg text-[11px] font-semibold py-1.5 px-1 transition-all ${
-                  activeTab === 'discover' 
-                    ? '!bg-purple-600 !text-white shadow-sm' 
-                    : isLightCanvas ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200'
+              <TabsTrigger
+                value="discover"
+                className={`!h-9 w-full rounded-xl text-xs font-semibold px-3 py-2 gap-2 transition-all cursor-pointer ${
+                  activeTab === 'discover'
+                    ? '!bg-purple-600 !text-white shadow-sm'
+                    : isLightCanvas ? 'text-slate-600 hover:text-slate-900 hover:bg-white/60' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
                 }`}
               >
-                <Globe className="h-3 w-3 mr-1 shrink-0" />
-                <span className="truncate">External</span>
+                <Globe className="size-3.5 shrink-0" />
+                <span>External</span>
               </TabsTrigger>
-              <TabsTrigger 
-                value="bible" 
-                className={`rounded-lg text-[11px] font-semibold py-1.5 px-1 transition-all ${
-                  activeTab === 'bible' 
-                    ? '!bg-brand-600 !text-white shadow-sm' 
-                    : isLightCanvas ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200'
+              <TabsTrigger
+                value="bible"
+                className={`!h-9 w-full rounded-xl text-xs font-semibold px-3 py-2 gap-2 transition-all cursor-pointer ${
+                  activeTab === 'bible'
+                    ? '!bg-brand-600 !text-white shadow-sm'
+                    : isLightCanvas ? 'text-slate-600 hover:text-slate-900 hover:bg-white/60' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
                 }`}
               >
-                <BookOpen className="h-3 w-3 mr-1 shrink-0" />
-                <span className="truncate">Bible</span>
+                <BookOpen className="size-3.5 shrink-0" />
+                <span>Bible</span>
               </TabsTrigger>
-              <TabsTrigger 
-                value="promiseVerse" 
-                className={`rounded-lg text-[11px] font-semibold py-1.5 px-1 transition-all ${
-                  activeTab === 'promiseVerse' 
-                    ? '!bg-amber-600 !text-white shadow-sm' 
-                    : isLightCanvas ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200'
+              <TabsTrigger
+                value="promiseVerse"
+                className={`!h-9 w-full rounded-xl text-xs font-semibold px-3 py-2 gap-2 transition-all cursor-pointer ${
+                  activeTab === 'promiseVerse'
+                    ? '!bg-amber-600 !text-white shadow-sm'
+                    : isLightCanvas ? 'text-slate-600 hover:text-slate-900 hover:bg-white/60' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
                 }`}
               >
-                <Sparkles className="h-3 w-3 mr-1 shrink-0" />
-                <span className="truncate">Promise</span>
+                <Sparkles className="size-3.5 shrink-0" />
+                <span>Promise</span>
               </TabsTrigger>
             </TabsList>
 
