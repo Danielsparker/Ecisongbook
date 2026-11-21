@@ -7,7 +7,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { collection, query, orderBy, onSnapshot, addDoc, updateDoc, deleteDoc, serverTimestamp, doc } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
-import { Music2, Loader2, Plus, BookOpen, Sparkles, Globe, Tv, ArrowDown } from 'lucide-react';
+import { Music2, Loader2, Plus, BookOpen, Sparkles, Globe, Tv } from 'lucide-react';
 
 import { auth, db, loginWithGoogle, logout, handleFirestoreError, OperationType } from './lib/firebase';
 import { Song } from './types';
@@ -518,24 +518,13 @@ export default function App() {
                           : 'Browse and project monthly promise verse wallpapers directly onto your church screen.'}
                   </p>
 
-                  {/* Primary & Presentation CTAs */}
+                  {/* Presentation CTA */}
                   <div className="flex flex-wrap items-center justify-center gap-3 pt-2 pb-4">
                     <Button
-                      onClick={() => {
-                        const el = document.getElementById('workspace');
-                        el?.scrollIntoView({ behavior: 'smooth' });
-                      }}
+                      onClick={() => handleOpenStudio(presenterSong?.id || selectedSong?.id)}
                       className="rounded-xl bg-brand-600 hover:bg-brand-700 text-white px-6 h-11 font-semibold gap-2 shadow-sm whitespace-nowrap shrink-0 cursor-pointer"
                     >
-                      <span>Get Started</span>
-                      <ArrowDown className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => handleOpenStudio(presenterSong?.id || selectedSong?.id)}
-                      className="rounded-xl border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800 px-6 h-11 font-semibold gap-2 whitespace-nowrap shrink-0 cursor-pointer"
-                    >
-                      <Tv className="h-4 w-4 text-brand-600 dark:text-brand-400" />
+                      <Tv className="h-4 w-4" />
                       <span>Explore Presentation</span>
                     </Button>
                   </div>

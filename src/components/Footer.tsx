@@ -44,12 +44,15 @@ export const Footer: React.FC<FooterProps> = ({
                 e.preventDefault();
                 onNavigatePath('/');
               }}
-              className="inline-flex items-center gap-2.5"
+              className="inline-flex items-center rounded-xl bg-white p-1 border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow transition-all"
+              aria-label="Tamil Worship Lyrics Home"
             >
-              <img src="/favicon.svg" alt="" className="h-8 w-8 rounded-lg" width={32} height={32} />
-              <span className="text-lg font-bold tracking-tight text-slate-900 dark:text-white">
-                Tamil Worship Lyrics
-              </span>
+              <img
+                src="/logo.png"
+                alt="Tamil Worship Lyrics"
+                className="h-14 w-auto object-contain rounded-lg"
+              />
+              <span className="sr-only">Tamil Worship Lyrics</span>
             </a>
             <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed max-w-md">
               A modern, customizable Tamil Christian worship lyrics management and live church presentation platform built for congregations, worship leaders, and media teams.

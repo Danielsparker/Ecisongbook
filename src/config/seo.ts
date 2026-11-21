@@ -88,8 +88,8 @@ export const SEO_ROUTES: Record<SeoRoutePath, SeoRouteDefinition> = {
       'Tamil Christian Worship Lyrics',
     ],
     schemaType: 'WebApplication',
-    ctaPrimaryLabel: 'Get Started',
-    ctaPrimaryTarget: 'songs',
+    ctaPrimaryLabel: 'Explore Presentation',
+    ctaPrimaryTarget: 'studio',
     sections: [
       {
         heading: 'Live Church Presentation Built for Congregations',
@@ -425,7 +425,7 @@ export function buildStructuredDataJsonLd(route: SeoRouteDefinition, canonicalUr
     '@type': 'Organization',
     name: BRAND_NAME,
     description: BRAND_DESCRIPTION,
-    ...(baseUrl ? { url: baseUrl, logo: `${baseUrl}/favicon.svg` } : {}),
+    ...(baseUrl ? { url: baseUrl, logo: `${baseUrl}/logo.png` } : {}),
   };
 
   const website: Record<string, unknown> = {

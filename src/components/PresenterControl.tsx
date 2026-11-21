@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { 
   Play, 
@@ -36,7 +36,8 @@ import {
   Shuffle,
   Home,
   Globe,
-  Loader2
+  Loader2,
+  Trash2
 } from 'lucide-react';
 import { Song, BibleVerse, TCWSongSummary } from '../types';
 import { 
@@ -94,6 +95,11 @@ export function PresenterControl({
   const [activeTab, setActiveTab] = useState<'songs' | 'discover' | 'bible' | 'promiseVerse'>('songs');
   const [promiseVerses, setPromiseVerses] = useState<any[]>([]);
   const [showPromiseVerseMenu, setShowPromiseVerseMenu] = useState(false);
+  const [confirmDeletePromiseId, setConfirmDeletePromiseId] = useState<string | null>(null);
+  const [deletingPromiseId, setDeletingPromiseId] = useState<string | null>(null);
+  const [promiseDeleteError, setPromiseDeleteError] = useState<string | null>(null);
+  const promiseMenuCloseTimerRef = useRef<number | null>(null);
+  const promiseMenuContainerRef = useRef<HTMLDivElement>(null);
   const [isFullScreenModalOpen, setIsFullScreenModalOpen] = useState(false);
   const [showCopyrightModal, setShowCopyrightModal] = useState(false);
   const [pendingConsentSong, setPendingConsentSong] = useState<Song | null>(null);
@@ -195,6 +201,88 @@ export function PresenterControl({
     };
     setPresState(updated);
     publishPresentationState(updated);
+  };
+
+  const openPromiseMenu = () => {
+    if (promiseMenuCloseTimerRef.current !== null) {
+      window.clearTimeout(promiseMenuCloseTimerRef.current);
+      promiseMenuCloseTimerRef.current = null;
+    }
+    setShowPromiseVerseMenu(true);
+  };
+
+  const scheduleClosePromiseMenu = () => {
+    if (confirmDeletePromiseId || deletingPromiseId) return;
+    if (promiseMenuCloseTimerRef.current !== null) {
+      window.clearTimeout(promiseMenuCloseTimerRef.current);
+    }
+    promiseMenuCloseTimerRef.current = window.setTimeout(() => {
+      setShowPromiseVerseMenu(false);
+      setConfirmDeletePromiseId(null);
+      setPromiseDeleteError(null);
+      promiseMenuCloseTimerRef.current = null;
+    }, 240);
+  };
+
+  useEffect(() => {
+    if (!showPromiseVerseMenu) return;
+    const handleOutside = (event: MouseEvent) => {
+      if (
+        promiseMenuContainerRef.current &&
+        !promiseMenuContainerRef.current.contains(event.target as Node)
+      ) {
+        setShowPromiseVerseMenu(false);
+        setConfirmDeletePromiseId(null);
+        setPromiseDeleteError(null);
+      }
+    };
+    const handleEsc = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setShowPromiseVerseMenu(false);
+        setConfirmDeletePromiseId(null);
+        setPromiseDeleteError(null);
+      }
+    };
+    document.addEventListener('mousedown', handleOutside);
+    document.addEventListener('keydown', handleEsc);
+    return () => {
+      document.removeEventListener('mousedown', handleOutside);
+      document.removeEventListener('keydown', handleEsc);
+    };
+  }, [showPromiseVerseMenu]);
+
+  useEffect(() => {
+    return () => {
+      if (promiseMenuCloseTimerRef.current !== null) {
+        window.clearTimeout(promiseMenuCloseTimerRef.current);
+      }
+    };
+  }, []);
+
+  const handleDeletePromiseVerse = async (verseId: string, imageUrl?: string) => {
+    if (!verseId || deletingPromiseId) return;
+    try {
+      setDeletingPromiseId(verseId);
+      setPromiseDeleteError(null);
+      await deleteDoc(doc(db, 'promiseVerses', verseId));
+      setPromiseVerses((prev) => prev.filter((item) => item.id !== verseId));
+      setConfirmDeletePromiseId(null);
+      if (imageUrl && presState.activeType === 'promiseVerse' && presState.promiseVerseUrl === imageUrl) {
+        const cleared: PresentationState = {
+          ...presState,
+          activeType: 'none',
+          promiseVerseUrl: '',
+          promiseVerseReference: '',
+        };
+        setPresState(cleared);
+        publishPresentationState(cleared);
+      }
+    } catch (err: any) {
+      console.error('Failed to delete promise verse:', err);
+      setPromiseDeleteError(err?.message || 'Unable to delete Promise Verse wallpaper. Please try again.');
+    } finally {
+      setDeletingPromiseId(null);
+    }
   };
   
   // Local presentation state mimicking the remote projector state
@@ -660,7 +748,11 @@ export function PresenterControl({
             <Home className="h-4 w-4 text-brand-500" />
             <span className="hidden sm:inline text-xs font-semibold">Home</span>
           </Button>
-          <Tv className={`h-6 w-6 animate-pulse ${isLightCanvas ? 'text-brand-600' : 'text-brand-400'}`} />
+          <img
+            src="/logo.png"
+            alt="Tamil Worship Lyrics"
+            className="h-9 w-auto object-contain rounded-lg bg-white p-0.5 border border-slate-200 dark:border-slate-700 shadow-sm shrink-0"
+          />
           <div>
             <h1 className={`text-xl font-bold tracking-tight flex items-center gap-2 ${
               isLightCanvas ? 'text-slate-900' : 'text-white'
@@ -698,15 +790,26 @@ export function PresenterControl({
           </Button>
 
           {/* Promise Verse Option Button (In front of Blackout Screen) */}
-          <div 
+          <div
+            ref={promiseMenuContainerRef}
             className="relative"
-            onMouseEnter={() => setShowPromiseVerseMenu(true)}
-            onMouseLeave={() => setShowPromiseVerseMenu(false)}
+            onMouseEnter={openPromiseMenu}
+            onMouseLeave={scheduleClosePromiseMenu}
           >
-            <Button 
-              onClick={() => setShowPromiseVerseMenu(!showPromiseVerseMenu)}
+            <Button
+              type="button"
+              onClick={() => {
+                if (showPromiseVerseMenu) {
+                  setShowPromiseVerseMenu(false);
+                  setConfirmDeletePromiseId(null);
+                  setPromiseDeleteError(null);
+                } else {
+                  openPromiseMenu();
+                }
+              }}
               variant="ghost"
               size="sm"
+              aria-expanded={showPromiseVerseMenu}
               className={`gap-2 h-9 rounded-xl font-semibold transition-all border ${
                 presState.activeType === 'promiseVerse'
                   ? '!bg-amber-600 hover:!bg-amber-500 !text-white border-amber-400 shadow-lg shadow-amber-900/30'
@@ -727,106 +830,192 @@ export function PresenterControl({
             </Button>
 
             {showPromiseVerseMenu && (
-              <div className={`absolute left-0 sm:left-auto sm:right-0 top-full mt-2 w-80 sm:w-96 rounded-2xl shadow-2xl backdrop-blur-md p-3.5 z-50 animate-in fade-in zoom-in-95 duration-150 border ${
-                isLightCanvas 
-                  ? 'bg-white/95 border-slate-200 text-slate-900' 
-                  : 'bg-slate-900/95 border-slate-700/80 text-slate-100'
-              }`}>
-                <div className={`flex justify-between items-center pb-2.5 mb-2.5 border-b ${
-                  isLightCanvas ? 'border-slate-200' : 'border-slate-800'
+              <div
+                onMouseEnter={openPromiseMenu}
+                onMouseLeave={scheduleClosePromiseMenu}
+                className="absolute left-0 sm:left-auto sm:right-0 top-full pt-2 w-80 sm:w-[26rem] z-50"
+              >
+                <div className={`rounded-2xl shadow-2xl backdrop-blur-md p-3.5 animate-in fade-in zoom-in-95 duration-150 border ${
+                  isLightCanvas
+                    ? 'bg-white/95 border-slate-200 text-slate-900'
+                    : 'bg-slate-900/95 border-slate-700/80 text-slate-100'
                 }`}>
-                  <div className="flex items-center gap-2">
-                    <Sparkles className="h-4 w-4 text-amber-500" />
-                    <span className="text-xs font-bold uppercase tracking-wider">Promise Verse Wallpapers</span>
-                  </div>
-                  <Badge variant="outline" className="text-[10px] border-amber-500/30 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20">
-                    {promiseVerses.length} Available
-                  </Badge>
-                </div>
-
-                {promiseVerses.length > 0 ? (
-                  <div className="grid grid-cols-1 gap-2.5 max-h-80 overflow-y-auto pr-1 custom-scrollbar">
-                    {promiseVerses.map((verse) => {
-                      const isActive = presState.activeType === 'promiseVerse' && presState.promiseVerseUrl === verse.imageUrl;
-                      return (
-                        <div
-                          key={verse.id || verse.imageUrl}
-                          onClick={() => {
-                            handlePresentPromiseVerse(verse);
-                            setShowPromiseVerseMenu(false);
-                          }}
-                          className={`group relative flex items-center gap-3 p-2 rounded-xl border transition-all cursor-pointer ${
-                            isActive
-                              ? isLightCanvas
-                                ? 'bg-amber-50 border-amber-500 shadow-md ring-1 ring-amber-400'
-                                : 'bg-amber-950/40 border-amber-500/80 shadow-md shadow-amber-950/50 ring-1 ring-amber-500/50'
-                              : isLightCanvas
-                                ? 'bg-slate-50 hover:bg-amber-50/60 border-slate-200 hover:border-amber-300'
-                                : 'bg-slate-950/60 hover:bg-slate-800/80 border-slate-800 hover:border-amber-500/40'
-                          }`}
-                        >
-                          <div className="relative w-24 h-16 rounded-lg overflow-hidden bg-slate-900 border border-slate-700 shrink-0">
-                            <img
-                              src={verse.imageUrl}
-                              alt={verse.title || 'Promise Verse'}
-                              referrerPolicy="no-referrer"
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                            />
-                            {isActive ? (
-                              <div className="absolute inset-0 bg-amber-950/70 backdrop-blur-[1px] flex items-center justify-center">
-                                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500 text-slate-950 uppercase tracking-wider">
-                                  LIVE
-                                </span>
-                              </div>
-                            ) : (
-                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                <Play className="w-5 h-5 text-amber-400 fill-amber-400/30" />
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="flex-1 min-w-0 space-y-0.5">
-                            <h5 className="text-xs font-bold truncate group-hover:text-amber-600 dark:group-hover:text-amber-300 transition-colors">
-                              {verse.title || 'Promise Verse'}
-                            </h5>
-                            {verse.reference && (
-                              <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium truncate">
-                                {verse.reference}
-                              </p>
-                            )}
-                            {verse.month && (
-                              <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
-                                {verse.month}
-                              </p>
-                            )}
-                          </div>
-
-                          <div className="shrink-0">
-                            <Button size="sm" className={`h-7 px-2.5 rounded-lg text-xs font-bold ${
-                              isActive 
-                                ? 'bg-amber-500 text-slate-950 hover:bg-amber-400' 
-                                : isLightCanvas
-                                  ? 'bg-white border border-slate-300 text-slate-700 hover:bg-amber-500 hover:text-slate-950'
-                                  : 'bg-slate-800 text-slate-200 hover:bg-amber-500 hover:text-slate-950'
-                            }`}>
-                              {isActive ? 'Live' : 'Present'}
-                            </Button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className={`text-center py-6 px-3 rounded-xl border space-y-2 ${
-                    isLightCanvas ? 'bg-slate-50 border-slate-200' : 'bg-slate-950/40 border-slate-800/80'
+                  <div className={`flex justify-between items-center pb-2.5 mb-2.5 border-b ${
+                    isLightCanvas ? 'border-slate-200' : 'border-slate-800'
                   }`}>
-                    <Sparkles className="h-8 w-8 text-amber-500/60 mx-auto animate-pulse" />
-                    <p className="text-xs font-semibold">No Promise Verses Uploaded Yet</p>
-                    <p className="text-[11px] text-slate-500 leading-relaxed">
-                      Upload your monthly promise verse wallpaper images in the Promise Verse manager tab to present them here.
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-amber-500" />
+                      <span className="text-xs font-bold uppercase tracking-wider">Promise Verse Wallpapers</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <Badge variant="outline" className="text-[10px] border-amber-500/30 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20">
+                        {promiseVerses.length} Available
+                      </Badge>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowPromiseVerseMenu(false);
+                          setConfirmDeletePromiseId(null);
+                          setPromiseDeleteError(null);
+                        }}
+                        aria-label="Close Promise Verse menu"
+                        className="p-1 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-800 cursor-pointer"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                   </div>
-                )}
+
+                  {promiseDeleteError && (
+                    <div className="mb-2.5 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-[11px] text-rose-600 dark:text-rose-300">
+                      {promiseDeleteError}
+                    </div>
+                  )}
+
+                  {promiseVerses.length > 0 ? (
+                    <div className="grid grid-cols-1 gap-2.5 max-h-80 overflow-y-auto pr-1 custom-scrollbar">
+                      {promiseVerses.map((verse) => {
+                        const isActive = presState.activeType === 'promiseVerse' && presState.promiseVerseUrl === verse.imageUrl;
+                        const isConfirming = !!verse.id && confirmDeletePromiseId === verse.id;
+                        const isDeleting = !!verse.id && deletingPromiseId === verse.id;
+                        return (
+                          <div
+                            key={verse.id || verse.imageUrl}
+                            onClick={() => {
+                              if (isConfirming || isDeleting) return;
+                              handlePresentPromiseVerse(verse);
+                              setShowPromiseVerseMenu(false);
+                            }}
+                            className={`group relative flex items-center gap-3 p-2 rounded-xl border transition-all cursor-pointer ${
+                              isActive
+                                ? isLightCanvas
+                                  ? 'bg-amber-50 border-amber-500 shadow-md ring-1 ring-amber-400'
+                                  : 'bg-amber-950/40 border-amber-500/80 shadow-md shadow-amber-950/50 ring-1 ring-amber-500/50'
+                                : isLightCanvas
+                                  ? 'bg-slate-50 hover:bg-amber-50/60 border-slate-200 hover:border-amber-300'
+                                  : 'bg-slate-950/60 hover:bg-slate-800/80 border-slate-800 hover:border-amber-500/40'
+                            }`}
+                          >
+                            <div className="relative w-24 h-16 rounded-lg overflow-hidden bg-slate-900 border border-slate-700 shrink-0">
+                              <img
+                                src={verse.imageUrl}
+                                alt={verse.title || 'Promise Verse'}
+                                referrerPolicy="no-referrer"
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                              />
+                              {isActive ? (
+                                <div className="absolute inset-0 bg-amber-950/70 backdrop-blur-[1px] flex items-center justify-center">
+                                  <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500 text-slate-950 uppercase tracking-wider">
+                                    LIVE
+                                  </span>
+                                </div>
+                              ) : (
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                  <Play className="w-5 h-5 text-amber-400 fill-amber-400/30" />
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="flex-1 min-w-0 space-y-0.5">
+                              <h5 className="text-xs font-bold truncate group-hover:text-amber-600 dark:group-hover:text-amber-300 transition-colors">
+                                {verse.title || 'Promise Verse'}
+                              </h5>
+                              {verse.reference && (
+                                <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium truncate">
+                                  {verse.reference}
+                                </p>
+                              )}
+                              {verse.month && (
+                                <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                                  {verse.month}
+                                </p>
+                              )}
+                            </div>
+
+                            <div className="shrink-0 flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                              {isConfirming ? (
+                                <>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    disabled={isDeleting}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (verse.id) handleDeletePromiseVerse(verse.id, verse.imageUrl);
+                                    }}
+                                    className="h-7 px-2 rounded-lg text-[11px] font-bold bg-rose-600 hover:bg-rose-700 text-white cursor-pointer"
+                                  >
+                                    {isDeleting ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Confirm'}
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="ghost"
+                                    disabled={isDeleting}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setConfirmDeletePromiseId(null);
+                                    }}
+                                    className="h-7 px-2 rounded-lg text-[11px] cursor-pointer"
+                                  >
+                                    Cancel
+                                  </Button>
+                                </>
+                              ) : (
+                                <>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handlePresentPromiseVerse(verse);
+                                      setShowPromiseVerseMenu(false);
+                                    }}
+                                    className={`h-7 px-2.5 rounded-lg text-xs font-bold cursor-pointer ${
+                                      isActive
+                                        ? 'bg-amber-500 text-slate-950 hover:bg-amber-400'
+                                        : isLightCanvas
+                                          ? 'bg-white border border-slate-300 text-slate-700 hover:bg-amber-500 hover:text-slate-950'
+                                          : 'bg-slate-800 text-slate-200 hover:bg-amber-500 hover:text-slate-950'
+                                    }`}
+                                  >
+                                    {isActive ? 'Live' : 'Present'}
+                                  </Button>
+                                  {verse.id && (
+                                    <Button
+                                      type="button"
+                                      size="icon"
+                                      variant="ghost"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setConfirmDeletePromiseId(verse.id);
+                                      }}
+                                      aria-label={`Delete ${verse.title || 'Promise Verse'}`}
+                                      title="Delete wallpaper"
+                                      className="h-7 w-7 rounded-lg text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 cursor-pointer"
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </Button>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className={`text-center py-6 px-3 rounded-xl border space-y-2 ${
+                      isLightCanvas ? 'bg-slate-50 border-slate-200' : 'bg-slate-950/40 border-slate-800/80'
+                    }`}>
+                      <Sparkles className="h-8 w-8 text-amber-500/60 mx-auto animate-pulse" />
+                      <p className="text-xs font-semibold">No Promise Verses Uploaded Yet</p>
+                      <p className="text-[11px] text-slate-500 leading-relaxed">
+                        Upload your monthly promise verse wallpaper images in the Promise Verse manager tab to present them here.
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -1362,43 +1551,74 @@ export function PresenterControl({
             <TabsContent value="promiseVerse" className="flex-1 overflow-hidden m-0">
               <ScrollArea className="h-full">
                 <div className="space-y-2 pr-2">
-                  {promiseVerses.map((pv) => (
-                    <div
-                      key={pv.id}
-                      className={`border rounded-xl p-2.5 space-y-2 transition-colors ${
-                        isLightCanvas ? 'bg-slate-50 border-slate-200 hover:border-amber-400' : 'bg-slate-900 border-slate-800 hover:border-amber-500/40'
-                      }`}
-                    >
-                      <div className="relative aspect-video rounded-lg overflow-hidden bg-black">
-                        <img src={pv.imageUrl} alt={pv.title} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent p-2 flex flex-col justify-end">
-                          <div className="text-xs font-bold text-white truncate">{pv.title}</div>
-                          <div className="text-[10px] text-amber-300 font-medium truncate">{pv.reference || pv.month}</div>
+                  {promiseVerses.map((pv) => {
+                    const isConfirming = !!pv.id && confirmDeletePromiseId === pv.id;
+                    const isDeleting = !!pv.id && deletingPromiseId === pv.id;
+                    return (
+                      <div
+                        key={pv.id || pv.imageUrl}
+                        className={`border rounded-xl p-2.5 space-y-2 transition-colors ${
+                          isLightCanvas ? 'bg-slate-50 border-slate-200 hover:border-amber-400' : 'bg-slate-900 border-slate-800 hover:border-amber-500/40'
+                        }`}
+                      >
+                        <div className="relative aspect-video rounded-lg overflow-hidden bg-black">
+                          <img src={pv.imageUrl} alt={pv.title} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent p-2 flex flex-col justify-end">
+                            <div className="text-xs font-bold text-white truncate">{pv.title}</div>
+                            <div className="text-[10px] text-amber-300 font-medium truncate">{pv.reference || pv.month}</div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          {isConfirming ? (
+                            <>
+                              <Button
+                                type="button"
+                                size="sm"
+                                disabled={isDeleting}
+                                onClick={() => pv.id && handleDeletePromiseVerse(pv.id, pv.imageUrl)}
+                                className="flex-1 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-lg text-xs h-7 cursor-pointer"
+                              >
+                                {isDeleting ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Confirm Delete'}
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                disabled={isDeleting}
+                                onClick={() => setConfirmDeletePromiseId(null)}
+                                className="rounded-lg text-xs h-7 px-2.5 cursor-pointer"
+                              >
+                                Cancel
+                              </Button>
+                            </>
+                          ) : (
+                            <>
+                              <Button
+                                type="button"
+                                onClick={() => handlePresentPromiseVerse(pv)}
+                                className="flex-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-lg text-xs h-7 gap-1 cursor-pointer shadow-sm"
+                              >
+                                <Play className="h-3 w-3 fill-current" /> Project Wallpaper Now
+                              </Button>
+                              {pv.id && (
+                                <Button
+                                  type="button"
+                                  size="icon"
+                                  variant="outline"
+                                  onClick={() => setConfirmDeletePromiseId(pv.id)}
+                                  aria-label={`Delete ${pv.title || 'Promise Verse'}`}
+                                  title="Delete wallpaper"
+                                  className="h-7 w-7 rounded-lg border-rose-500/30 text-rose-500 hover:bg-rose-500/10 cursor-pointer shrink-0"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              )}
+                            </>
+                          )}
                         </div>
                       </div>
-                      <Button
-                        onClick={() => {
-                          const updated = {
-                            ...presState,
-                            title: pv.title,
-                            subtitle: pv.reference || `Monthly Promise Verse (${pv.month || ''})`,
-                            slides: [],
-                            currentSlideIndex: 0,
-                            activeType: 'promiseVerse' as const,
-                            promiseVerseUrl: pv.imageUrl,
-                            promiseVerseReference: pv.reference,
-                            blackScreen: false,
-                            isExited: false,
-                          };
-                          setPresState(updated);
-                          publishPresentationState(updated);
-                        }}
-                        className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-lg text-xs h-7 gap-1 cursor-pointer shadow-sm"
-                      >
-                        <Play className="h-3 w-3 fill-current" /> Project Wallpaper Now
-                      </Button>
-                    </div>
-                  ))}
+                    );
+                  })}
                   {promiseVerses.length === 0 && (
                     <div className="text-center py-8 text-xs text-slate-400">
                       No promise verse wallpapers uploaded yet. Visit the Promise Verse section to add one!

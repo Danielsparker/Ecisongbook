@@ -38,23 +38,19 @@ export function Navbar({
   return (
     <header className="sticky top-0 z-50 w-full border-b border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-950/90 backdrop-blur-md">
       <div className="container mx-auto flex h-16 items-center justify-between gap-2 sm:gap-4 lg:gap-8 px-3 sm:px-4">
-        {/* Zone 1: Brand Wordmark */}
+        {/* Zone 1: Brand Logo */}
         <a
           href="/"
           onClick={(e) => handleLinkClick(e, '/')}
-          className="flex items-center gap-2 sm:gap-2.5 min-w-0 group"
+          className="inline-flex items-center min-w-0 shrink-0 group rounded-xl bg-white/95 px-1.5 py-0.5 border border-slate-200/80 dark:border-slate-700/80 shadow-sm hover:shadow transition-all"
           aria-label="Tamil Worship Lyrics Home"
         >
           <img
-            src="/favicon.svg"
-            alt=""
-            className="h-7 w-7 sm:h-8 sm:w-8 rounded-lg shrink-0"
-            width={32}
-            height={32}
+            src="/logo.png"
+            alt="Tamil Worship Lyrics"
+            className="h-9 sm:h-11 w-auto object-contain rounded-lg"
           />
-          <span className="text-[15px] sm:text-xl font-bold tracking-tight text-slate-900 dark:text-white group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors truncate">
-            Tamil Worship Lyrics
-          </span>
+          <span className="sr-only">Tamil Worship Lyrics</span>
         </a>
 
         {/* Zone 2: Clean Text Navigation Links */}
