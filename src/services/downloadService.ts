@@ -252,7 +252,7 @@ export const downloadAsPPT = (song: Song) => {
 /**
  * Batch export multiple songs as a single combined PDF setlist
  */
-export const downloadSetlistAsPDF = (songs: Song[], setlistName = 'ECI_Setlist') => {
+export const downloadSetlistAsPDF = (songs: Song[], setlistName = 'Tamil_Worship_Setlist') => {
   if (!songs || songs.length === 0) {
     throw new Error('No songs provided in setlist to export.');
   }
@@ -320,7 +320,7 @@ export const downloadSetlistAsPDF = (songs: Song[], setlistName = 'ECI_Setlist')
 /**
  * Batch export multiple songs as a combined PPTX presentation
  */
-export const downloadSetlistAsPPT = (songs: Song[], setlistName = 'ECI_Setlist') => {
+export const downloadSetlistAsPPT = (songs: Song[], setlistName = 'Tamil_Worship_Setlist') => {
   if (!songs || songs.length === 0) {
     throw new Error('No songs provided in setlist to export.');
   }

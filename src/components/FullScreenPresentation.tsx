@@ -85,7 +85,7 @@ export function FullScreenPresentation({
   const activeBgTheme = getBackgroundTheme(bgThemeId);
 
   // Initialize slides and title
-  const title = song?.title || (bibleVerse ? `${bibleVerse.book} ${bibleVerse.chapter}:${bibleVerse.verse}` : (promiseVerse?.title || 'ECI Worship'));
+  const title = song?.title || (bibleVerse ? `${bibleVerse.book} ${bibleVerse.chapter}:${bibleVerse.verse}` : (promiseVerse?.title || 'Tamil Worship Lyrics'));
   const subtitle = song ? `Song #${song.songNo}` : (bibleVerse ? (bibleVerse.version || 'Holy Bible') : (promiseVerse?.reference || 'Promise Verse'));
 
   useEffect(() => {

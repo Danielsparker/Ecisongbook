@@ -1,6 +1,6 @@
 {
-  "name": "ECI Song Book",
-  "description": "A modern platform for sharing, searching, and projecting song lyrics, scripture verses, and promise wallpapers with presenter controls and custom themes.",
+  "name": "Tamil Worship Lyrics",
+  "description": "A modern Tamil Christian worship lyrics management and live church presentation platform. Organize Tamil worship songs and present them live on church screens with customizable themes and Tamil fonts.",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

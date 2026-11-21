@@ -3,6 +3,14 @@ import { splitLyricsToSlides, DEFAULT_STATE } from './presentationService';
 import { sanitizeFilename, hasIndicOrTamilScript } from './downloadService';
 import { LYRIC_BACKGROUND_THEMES, getBackgroundTheme, DEFAULT_BACKGROUND_THEME_ID } from '../data/backgroundThemes';
 import { getSuggestedSongNo } from '../components/SubmitSongDialog';
+import {
+  PUBLIC_SEO_PATHS,
+  SEO_ROUTES,
+  buildCanonicalUrl,
+  buildStructuredDataJsonLd,
+  isPublicProductionHostname,
+  normalizePathname,
+} from '../config/seo';
 
 describe('presentationService', () => {
   it('splits lyrics into slides by double linebreaks correctly', () => {
@@ -164,4 +172,52 @@ describe('getSuggestedSongNo', () => {
     expect(getSuggestedSongNo(songs)).toBe(1021);
   });
 });
+
+describe('SEO configuration & canonical URL protection', () => {
+  it('defines complete metadata for homepage and all 6 public SEO landing routes', () => {
+    expect(PUBLIC_SEO_PATHS).toHaveLength(7);
+    for (const p of PUBLIC_SEO_PATHS) {
+      const route = SEO_ROUTES[p];
+      expect(route).toBeDefined();
+      expect(route.title).toContain('Tamil Worship Lyrics');
+      expect(route.title.length).toBeGreaterThanOrEqual(25);
+      expect(route.description.length).toBeGreaterThanOrEqual(80);
+      expect(route.h1.length).toBeGreaterThan(10);
+      expect(route.sections.length).toBeGreaterThanOrEqual(1);
+    }
+  });
+
+  it('normalizes trailing slashes properly', () => {
+    expect(normalizePathname('/')).toBe('/');
+    expect(normalizePathname('')).toBe('/');
+    expect(normalizePathname('/tamil-christian-songs/')).toBe('/tamil-christian-songs');
+  });
+
+  it('blocks localhost and temporary Cloud Run preview hostnames from canonical URLs', () => {
+    expect(isPublicProductionHostname('localhost')).toBe(false);
+    expect(isPublicProductionHostname('127.0.0.1')).toBe(false);
+    expect(isPublicProductionHostname('ais-dev-zcspkfqglxfkumwp35lqbu-90830327421.asia-southeast1.run.app')).toBe(false);
+    expect(isPublicProductionHostname('ais-pre-abc-123.us-central1.run.app')).toBe(false);
+
+    expect(
+      buildCanonicalUrl(
+        '/',
+        '',
+        'https://ais-dev-zcspkfqglxfkumwp35lqbu-90830327421.asia-southeast1.run.app',
+        'ais-dev-zcspkfqglxfkumwp35lqbu-90830327421.asia-southeast1.run.app'
+      )
+    ).toBe('');
+  });
+
+  it('generates canonical URLs and Schema.org JSON-LD when custom domain is provided', () => {
+    const canonical = buildCanonicalUrl('/tamil-christian-songs', 'https://example-church.org/');
+    expect(canonical).toBe('https://example-church.org/tamil-christian-songs');
+
+    const schemas = buildStructuredDataJsonLd(SEO_ROUTES['/'], 'https://example-church.org/');
+    expect(schemas.some((s) => s['@type'] === 'WebApplication')).toBe(true);
+    expect(schemas.some((s) => s['@type'] === 'FAQPage')).toBe(true);
+    expect(schemas.some((s) => s['@type'] === 'Organization')).toBe(true);
+  });
+});
+
 

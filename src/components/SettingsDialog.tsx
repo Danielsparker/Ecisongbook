@@ -232,8 +232,8 @@ export function SettingsDialog({ isOpen, onClose, isDarkMode, toggleDarkMode, is
                   <Info className="h-4 w-4" /> About &amp; Legal
                 </h3>
                 <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 space-y-2">
-                  <p className="text-sm font-medium dark:text-slate-200">ECI Song Book v1.2.0</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">A digital repository and worship lyrics presenter for congregations.</p>
+                  <p className="text-sm font-medium dark:text-slate-200">Tamil Worship Lyrics</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Manage your Tamil worship songs. Present them beautifully.</p>
                 </div>
 
                 <button

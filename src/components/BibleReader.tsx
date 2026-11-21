@@ -296,7 +296,7 @@ export function BibleReader() {
                 </div>
                 <h3 className="text-2xl font-black text-slate-800 dark:text-white mb-3">Library Empty</h3>
                 <p className="max-w-sm mx-auto text-slate-500 text-sm leading-relaxed mb-8">
-                  Your Supabase 'eci_songbook' table is empty or disconnected. Ensure environment variables are set in AI Studio.
+                  The Bible verse database is currently empty or disconnected. Please verify your Supabase configuration and try syncing again.
                 </p>
                 <Button 
                   onClick={fetchBooks}

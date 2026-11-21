@@ -83,7 +83,7 @@ class TCWApiService {
 
   /**
    * Normalizes an external TCW song into the internal Song interface.
-   * Format matches ECI Songbook's presentation engine perfectly without saving to database.
+   * Format matches Tamil Worship Lyrics' presentation engine cleanly without saving to database.
    */
   normalizeTCWSong(detail: TCWSongDetail): Song {
     const artistName: string = typeof detail.artist === 'object' && detail.artist !== null

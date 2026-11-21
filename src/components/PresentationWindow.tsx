@@ -325,7 +325,7 @@ export function PresentationWindow() {
           <div className="space-y-2">
             <h2 className="text-2xl font-bold tracking-tight text-white">Presentation Ended</h2>
             <p className="text-sm text-slate-400 leading-relaxed">
-              The presenter has exited the presentation session. You can close this window or return to the songbook.
+              The presenter has exited the presentation session. You can close this window or return to Tamil Worship Lyrics.
             </p>
           </div>
 
@@ -438,7 +438,7 @@ export function PresentationWindow() {
             showHeaders ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
           }`}
         >
-          <div className="font-semibold">{state?.subtitle || 'ECI Promise Verse'}</div>
+          <div className="font-semibold">{state?.subtitle || 'Promise Verse'}</div>
           <div className="flex items-center gap-3">
             {isFirestoreConnected && (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[11px] font-medium">
@@ -540,7 +540,7 @@ export function PresentationWindow() {
         }`}
       >
         <div className="font-semibold text-white/90 drop-shadow-sm flex items-center gap-2">
-          <span>{state?.subtitle || 'ECI Songbook'}</span>
+          <span>{state?.subtitle || 'Tamil Worship Lyrics'}</span>
           {bgTheme && !isBlackScreen && (
             <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/10 text-white/80 border border-white/10 font-sans font-medium">
               {bgTheme.name}
@@ -641,7 +641,7 @@ export function PresentationWindow() {
           showHeaders ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         }`}
       >
-        <div className="truncate max-w-md font-sans font-semibold drop-shadow-sm">{state?.title || 'ECI Songbook'}</div>
+        <div className="truncate max-w-md font-sans font-semibold drop-shadow-sm">{state?.title || 'Tamil Worship Lyrics'}</div>
         <div>
           {slides.length > 0 ? `${currentSlideIndex + 1} / ${slides.length}` : 'Standby'}
         </div>

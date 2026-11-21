@@ -10,9 +10,11 @@ import {
   Settings,
   ShieldCheck,
 } from 'lucide-react';
+import { PUBLIC_SEO_PATHS, SEO_ROUTES, SeoRoutePath } from '../config/seo';
 
 interface FooterProps {
   onNavigateTab: (tab: 'songs' | 'discover' | 'bible' | 'promiseVerse') => void;
+  onNavigatePath: (path: SeoRoutePath) => void;
   onOpenStudio: () => void;
   onAddSong: () => void;
   onOpenCopyright: () => void;
@@ -21,29 +23,36 @@ interface FooterProps {
 
 export const Footer: React.FC<FooterProps> = ({
   onNavigateTab,
+  onNavigatePath,
   onOpenStudio,
   onAddSong,
   onOpenCopyright,
   onOpenSettings,
 }) => {
   const currentYear = new Date().getFullYear();
+  const guidePaths = PUBLIC_SEO_PATHS.filter((p) => p !== '/');
 
   return (
-    <footer className="border-t border-slate-200 dark:border-slate-800 bg-white/85 dark:bg-slate-950/90 backdrop-blur-md transition-colors pb-20 sm:pb-0">
-      <div className="container mx-auto px-4 py-10 sm:py-12">
+    <footer className="border-t border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-950/90 backdrop-blur-md transition-colors pb-20 sm:pb-0">
+      <div className="container mx-auto px-4 py-12">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-8 lg:gap-10">
           {/* Brand Column */}
-          <div className="lg:col-span-5 space-y-3">
-            <div className="flex items-center gap-2.5">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-500 text-white shadow-md shadow-brand-500/20">
-                <Music className="h-5 w-5" />
-              </div>
+          <div className="lg:col-span-4 space-y-3">
+            <a
+              href="/"
+              onClick={(e) => {
+                e.preventDefault();
+                onNavigatePath('/');
+              }}
+              className="inline-flex items-center gap-2.5"
+            >
+              <img src="/favicon.svg" alt="" className="h-8 w-8 rounded-lg" width={32} height={32} />
               <span className="text-lg font-bold tracking-tight text-slate-900 dark:text-white">
-                ECI Song Book
+                Tamil Worship Lyrics
               </span>
-            </div>
+            </a>
             <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed max-w-md">
-              A church worship songbook and lyrics presentation platform designed to help congregations search, prepare, and present Tamil and English worship lyrics seamlessly.
+              A modern, customizable Tamil Christian worship lyrics management and live church presentation platform built for congregations, worship leaders, and media teams.
             </p>
             <div className="inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-500 dark:text-slate-400 pt-1">
               <ShieldCheck className="h-3.5 w-3.5 text-brand-500 shrink-0" />
@@ -51,10 +60,10 @@ export const Footer: React.FC<FooterProps> = ({
             </div>
           </div>
 
-          {/* Important Links */}
+          {/* Important Workspace Links */}
           <div className="lg:col-span-3 space-y-3">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-slate-200">
-              Important Links
+              Platform Workspace
             </h3>
             <ul className="space-y-2 text-xs sm:text-sm text-slate-500 dark:text-slate-400">
               <li>
@@ -120,27 +129,50 @@ export const Footer: React.FC<FooterProps> = ({
             </ul>
           </div>
 
-          {/* Copyright, Licensing & External Resources */}
-          <div className="lg:col-span-4 space-y-3">
+          {/* Worship & Presentation Guides (SEO Internal Links) */}
+          <div className="lg:col-span-3 space-y-3">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-slate-200">
-              Licensing &amp; Legal Info
+              Worship Guides
+            </h3>
+            <ul className="space-y-2 text-xs sm:text-sm text-slate-500 dark:text-slate-400">
+              {guidePaths.map((path) => (
+                <li key={path}>
+                  <a
+                    href={path}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      onNavigatePath(path);
+                    }}
+                    className="hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
+                  >
+                    {SEO_ROUTES[path].navLabel}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Copyright, Licensing & Legal Info */}
+          <div className="lg:col-span-2 space-y-3">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-slate-200">
+              Legal &amp; Settings
             </h3>
             <ul className="space-y-2 text-xs sm:text-sm text-slate-500 dark:text-slate-400">
               <li>
                 <button
                   type="button"
                   onClick={onOpenCopyright}
-                  className="inline-flex items-center gap-2 font-medium text-purple-600 dark:text-purple-400 hover:underline cursor-pointer"
+                  className="inline-flex items-center gap-2 font-medium text-purple-600 dark:text-purple-400 hover:underline cursor-pointer text-left"
                 >
                   <Copyright className="h-3.5 w-3.5 shrink-0" />
-                  <span>Copyright &amp; Licensing Notice</span>
+                  <span>Copyright &amp; Licensing</span>
                 </button>
               </li>
               <li>
                 <button
                   type="button"
                   onClick={onOpenSettings}
-                  className="inline-flex items-center gap-2 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
+                  className="inline-flex items-center gap-2 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer text-left"
                 >
                   <Settings className="h-3.5 w-3.5 shrink-0" />
                   <span>About &amp; Preferences</span>
@@ -151,9 +183,9 @@ export const Footer: React.FC<FooterProps> = ({
         </div>
 
         {/* Bottom Legal Bar */}
-        <div className="mt-8 pt-6 border-t border-slate-200/80 dark:border-slate-800/80 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 text-[11px] sm:text-xs text-slate-400 dark:text-slate-500">
+        <div className="mt-10 pt-6 border-t border-slate-200/80 dark:border-slate-800/80 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 text-[11px] sm:text-xs text-slate-400 dark:text-slate-500">
           <p>
-            &copy; {currentYear} ECI Song Book. Built for church worship preparation and presentation.
+            &copy; {currentYear} Tamil Worship Lyrics. Manage your Tamil worship songs. Present them beautifully.
           </p>
           <p className="max-w-xl md:text-right">
             Third-party song lyrics remain the property of their respective copyright holders. Churches are responsible for obtaining appropriate presentation licences.

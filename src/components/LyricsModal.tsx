@@ -68,7 +68,7 @@ export function LyricsModal({ song, isOpen, onClose, onPresent, onEdit, onDelete
       return `Source: ${song.source || 'Tamil Christian World'}`;
     }
     const raw = song.createdAt;
-    if (!raw) return 'ECI Songbook';
+    if (!raw) return 'Tamil Worship Lyrics';
     let date: Date | null = null;
     if (typeof raw?.toDate === 'function') {
       date = raw.toDate();
@@ -78,7 +78,7 @@ export function LyricsModal({ song, isOpen, onClose, onPresent, onEdit, onDelete
       date = new Date(raw);
     }
     if (!date || Number.isNaN(date.getTime())) {
-      return 'ECI Songbook';
+      return 'Tamil Worship Lyrics';
     }
     return `Submitted on ${date.toLocaleDateString()}`;
   };

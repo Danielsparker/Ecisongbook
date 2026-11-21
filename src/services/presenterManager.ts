@@ -381,7 +381,7 @@ class PresenterWindowManager {
     const updatedState: PresentationState = {
       ...currentState,
       title: song.title,
-      subtitle: song.songNo ? `Song #${song.songNo}` : (song.genre || 'ECI Song'),
+      subtitle: song.songNo ? `Song #${song.songNo}` : (song.genre || 'Worship Song'),
       slides: slides,
       currentSlideIndex: 0,
       theme: currentTheme,

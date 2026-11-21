@@ -675,7 +675,7 @@ export function PresenterControl({
               </Badge>
             </h1>
             <p className={`text-xs ${isLightCanvas ? 'text-slate-600' : 'text-slate-400'}`}>
-              ECI worship slide manager & worship control interface
+              Tamil Worship Lyrics slide manager &amp; live church presentation console
             </p>
           </div>
         </div>
@@ -895,7 +895,7 @@ export function PresenterControl({
                 Church Screen Projection & Multi-TV Setup Hub
               </CardTitle>
               <CardDescription className="text-xs text-slate-400">
-                Configure ECI Song Book to display lyrics slides on 1, 2, 3 or more TVs/Projectors simultaneously.
+                Configure Tamil Worship Lyrics to display lyrics slides on 1, 2, 3 or more TVs/Projectors simultaneously.
               </CardDescription>
             </div>
             
@@ -1570,7 +1570,7 @@ export function PresenterControl({
                     isLightCanvas ? 'text-slate-500' : 'text-slate-500'
                   }`}>
                     <span className={`h-1.5 w-1.5 rounded-full ${isLightCanvas ? 'bg-amber-500' : 'bg-brand-500'}`} />
-                    ECI LYRIC BLOCK
+                    WORSHIP LYRIC SLIDE
                   </div>
                 </button>
               ))}
@@ -1976,8 +1976,8 @@ export function PresenterControl({
             </CardHeader>
             <CardContent className="text-xs space-y-3">
               <div className={`flex justify-between py-1 border-b ${isLightCanvas ? 'border-slate-200' : 'border-slate-800'}`}>
-                <span className="text-slate-400">Local Channel</span>
-                <span className="text-emerald-600 dark:text-emerald-400 font-semibold font-mono">eci-presentation</span>
+                <span className="text-slate-400">Live Sync</span>
+                <span className="text-emerald-600 dark:text-emerald-400 font-semibold font-mono">Broadcast Active</span>
               </div>
               <div className={`flex justify-between py-1 border-b ${isLightCanvas ? 'border-slate-200' : 'border-slate-800'}`}>
                 <span className="text-slate-400">Worship Screen</span>

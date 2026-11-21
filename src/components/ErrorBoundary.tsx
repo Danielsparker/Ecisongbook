@@ -25,7 +25,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
-    console.error('ECI Songbook UI ErrorBoundary caught an error:', error, errorInfo);
+    console.error('Tamil Worship Lyrics UI ErrorBoundary caught an error:', error, errorInfo);
   }
 
   handleResetCacheAndReload = () => {

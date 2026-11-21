@@ -5,9 +5,9 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import { collection, query, orderBy, onSnapshot, addDoc, updateDoc, deleteDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, addDoc, updateDoc, deleteDoc, serverTimestamp, doc } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
-import { Music2, Loader2, Plus, BookOpen, Sparkles, Globe } from 'lucide-react';
+import { Music2, Loader2, Plus, BookOpen, Sparkles, Globe, Tv, ArrowDown } from 'lucide-react';
 
 import { auth, db, loginWithGoogle, logout, handleFirestoreError, OperationType } from './lib/firebase';
 import { Song } from './types';
@@ -29,6 +29,16 @@ import { presenterManager } from './services/presenterManager';
 import { tcwApiService } from './services/tcwApiService';
 import { ExternalCopyrightConsentDialog, hasAcknowledgedExternalCopyright } from './components/CopyrightNotice';
 import { Footer } from './components/Footer';
+import { LandingSections } from './components/LandingSections';
+import { SeoGuidePage } from './components/SeoGuidePage';
+import {
+  BRAND_HERO_HEADLINE,
+  SeoRoutePath,
+  isKnownSeoPath,
+  normalizePathname,
+  resolveSeoRoute,
+} from './config/seo';
+import { applyRuntimeSeo } from './utils/seo';
 
 const SESSION_EXTERNAL_SONGS_KEY = 'eci_session_external_songs';
 
@@ -58,6 +68,7 @@ export default function App() {
   const isPresentationMode = initialUrlState.isPresentation;
   const [isPresenterControlMode, setIsPresenterControlMode] = useState(initialUrlState.isControl);
   const [urlSongId, setUrlSongId] = useState<string | null>(initialUrlState.songId);
+  const [currentPath, setCurrentPath] = useState<string>(() => normalizePathname(window.location.pathname));
 
   const [user, loading] = useAuthState(auth);
   const [userRole, setUserRole] = useState<string | null>(null);
@@ -67,7 +78,7 @@ export default function App() {
       if (!cached) return [];
       const parsed = JSON.parse(cached);
       return Array.isArray(parsed) ? parsed.filter((s): s is Song => Boolean(s && typeof s === 'object')) : [];
-    } catch (e) {
+    } catch {
       return [];
     }
   });
@@ -85,7 +96,7 @@ export default function App() {
   const [isInitialLoading, setIsInitialLoading] = useState(() => {
     try {
       return !localStorage.getItem('eci_cached_songs');
-    } catch (e) {
+    } catch {
       return true;
     }
   });
@@ -115,6 +126,15 @@ export default function App() {
     if (!user) return false;
     return isAdmin || userRole === 'contributor' || userRole === 'viewer';
   }, [publicSubmissions, isAdmin, userRole, user]);
+
+  // Keep SEO document head, canonicals, and Schema.org JSON-LD synced with route & presentation modes
+  useEffect(() => {
+    applyRuntimeSeo({
+      pathname: currentPath,
+      isPresentationMode,
+      isControlMode: isPresenterControlMode || isStudioOpen,
+    });
+  }, [currentPath, isPresentationMode, isPresenterControlMode, isStudioOpen]);
 
   const handleAddClick = () => {
     if (!canSubmit) {
@@ -154,7 +174,7 @@ export default function App() {
         url.searchParams.set('songId', song.id);
       }
       window.history.pushState({}, '', url.toString());
-    } catch (e) {}
+    } catch {}
   };
 
   const handlePresentSong = (song: Song) => {
@@ -208,9 +228,9 @@ export default function App() {
   useEffect(() => {
     if (user) {
       const userRef = doc(db, 'users', user.uid);
-      const unsubscribeUser = onSnapshot(userRef, (doc) => {
-        if (doc.exists()) {
-          setUserRole(doc.data().role);
+      const unsubscribeUser = onSnapshot(userRef, (docSnap) => {
+        if (docSnap.exists()) {
+          setUserRole(docSnap.data().role);
         }
       });
       return () => unsubscribeUser();
@@ -220,18 +240,16 @@ export default function App() {
   }, [user]);
 
   useEffect(() => {
-    // Songs Listener
     const qSongs = query(collection(db, 'songs'), orderBy('createdAt', 'desc'));
     const unsubscribeSongs = onSnapshot(qSongs, (snapshot) => {
-      console.log(`Received songs snapshot: ${snapshot.size} songs`);
-      const songsData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
+      const songsData = snapshot.docs.map(docSnap => ({
+        id: docSnap.id,
+        ...docSnap.data()
       })) as Song[];
       setSongs(songsData);
       try {
         localStorage.setItem('eci_cached_songs', JSON.stringify(songsData));
-      } catch (e) {}
+      } catch {}
       setIsInitialLoading(false);
     }, (err) => {
       console.error("Firestore songs fetch error:", err);
@@ -243,10 +261,9 @@ export default function App() {
       }
     });
 
-    // Listen to global settings
-    const settingsUnsubscribe = onSnapshot(doc(db, 'config', 'global'), (doc) => {
-      if (doc.exists()) {
-        setPublicSubmissions(doc.data().publicSubmissions ?? true);
+    const settingsUnsubscribe = onSnapshot(doc(db, 'config', 'global'), (docSnap) => {
+      if (docSnap.exists()) {
+        setPublicSubmissions(docSnap.data().publicSubmissions ?? true);
       }
     });
 
@@ -276,7 +293,7 @@ export default function App() {
       const title = (song.title || "").toLowerCase();
       const genre = (song.genre || "").toLowerCase();
       const songNo = (song.songNo !== undefined && song.songNo !== null) ? song.songNo.toString() : "";
-      
+
       return (
         title.includes(searchLower) ||
         genre.includes(searchLower) ||
@@ -294,7 +311,7 @@ export default function App() {
       alert("Submissions are currently restricted to authorized contributors.");
       return;
     }
-    
+
     try {
       await addDoc(collection(db, 'songs'), {
         ...songData,
@@ -310,19 +327,20 @@ export default function App() {
     setIsLoggingIn(true);
     try {
       await loginWithGoogle();
-    } catch (err: any) {
+    } catch {
     } finally {
       setIsLoggingIn(false);
     }
   };
 
-  // Listen to popstate so browser Back/Forward smoothly enters or exits Control Center
+  // Listen to popstate so browser Back/Forward smoothly syncs Control Center & SEO routes
   useEffect(() => {
     const handlePopState = () => {
       const next = getUrlModeParams();
       setIsPresenterControlMode(next.isControl);
       setIsStudioOpen(next.isControl);
       setUrlSongId(next.songId);
+      setCurrentPath(normalizePathname(window.location.pathname));
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
@@ -348,21 +366,28 @@ export default function App() {
       .catch(() => {});
   }, [isPresenterControlMode, isStudioOpen, urlSongId]);
 
+  const navigateToPath = (path: SeoRoutePath) => {
+    setIsStudioOpen(false);
+    setIsPresenterControlMode(false);
+    setPresenterSong(null);
+    setUrlSongId(null);
+    setCurrentPath(path);
+    try {
+      window.history.pushState({}, '', path);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch {}
+  };
+
   const navigateToHome = () => {
     setIsStudioOpen(false);
     setIsPresenterControlMode(false);
     setPresenterSong(null);
     setUrlSongId(null);
+    setCurrentPath('/');
     try {
-      if (window.location.search.includes('mode=') || window.location.search.includes('songId=')) {
-        const url = new URL(window.location.href);
-        url.searchParams.delete('mode');
-        url.searchParams.delete('songId');
-        const newSearch = url.searchParams.toString();
-        window.history.pushState({}, '', url.pathname + (newSearch ? `?${newSearch}` : ''));
-      }
+      window.history.pushState({}, '', '/');
       window.scrollTo({ top: 0, behavior: 'smooth' });
-    } catch (e) {}
+    } catch {}
   };
 
   if (isPresentationMode) {
@@ -382,16 +407,16 @@ export default function App() {
       null;
 
     return (
-      <PresenterControl 
-        songs={allPresenterSongs} 
+      <PresenterControl
+        songs={allPresenterSongs}
         initialActiveSong={initialPresenterSong}
         onGoHome={navigateToHome}
         onExit={() => {
           navigateToHome();
           try {
             window.close();
-          } catch (e) {}
-        }} 
+          } catch {}
+        }}
         isDarkMode={isDarkMode}
         canvasTheme={canvasTheme}
         onToggleCanvasTheme={(theme) => {
@@ -409,7 +434,7 @@ export default function App() {
       <div className="flex h-screen w-full items-center justify-center bg-slate-50 dark:bg-slate-950">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="h-10 w-10 animate-spin text-brand-600" />
-          <p className="text-sm font-medium text-slate-500">Loading ECI Song Book...</p>
+          <p className="text-sm font-medium text-slate-500">Loading Tamil Worship Lyrics...</p>
         </div>
       </div>
     );
@@ -423,226 +448,294 @@ export default function App() {
     }
     try {
       const url = new URL(window.location.href);
+      url.pathname = '/';
       url.searchParams.set('mode', 'control');
       if (songId) {
         url.searchParams.set('songId', songId);
       }
       window.history.pushState({}, '', url.toString());
-    } catch (e) {}
+    } catch {}
   };
+
+  const isGuidePage = currentPath !== '/' && isKnownSeoPath(currentPath);
 
   return (
     <ErrorBoundary>
       <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
-        <Navbar 
-          user={user} 
-          onLogin={handleLogin} 
-          onLogout={logout} 
+        <Navbar
+          user={user}
+          onLogin={handleLogin}
+          onLogout={logout}
           onAddSong={handleAddClick}
           onOpenSettings={() => {
             setSettingsInitialView('main');
             setIsSettingsOpen(true);
           }}
           onOpenStudio={() => handleOpenStudio(presenterSong?.id || selectedSong?.id)}
+          onNavigatePath={navigateToPath}
+          currentPath={currentPath}
           canSubmit={canSubmit}
           isLoggingIn={isLoggingIn}
         />
 
-        <main className="container mx-auto px-4 py-12 flex-1">
-          {/* Hero Section */}
-          <section className="mb-16 text-center">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
-            >
-              <h1 className="mb-4 text-3xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-6xl font-serif">
-                Every <span className="text-brand-600 italic">{activeTab === 'songs' ? 'Song' : activeTab === 'discover' ? 'Catalogue' : 'Verse'}</span> Has a Story.
-              </h1>
-              <p className="mx-auto mb-10 max-w-2xl text-lg text-slate-500 dark:text-slate-400">
-                {activeTab === 'songs' 
-                  ? 'Explore thousands of lyrics, submit your own favorites, and download them as beautiful PDF or PPT presentations.'
-                  : activeTab === 'discover'
-                  ? 'Discover over 16,000+ Tamil Christian songs from Tamil Christian World, preview lyrics & chords, and present live.'
-                  : activeTab === 'bible'
-                  ? 'Read, search, and present Tamil and English Scripture verses seamlessly during worship.'
-                  : 'Browse and project monthly promise verse wallpapers directly onto your church screen.'}
-              </p>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.2, duration: 0.5 }}
-              className="flex flex-col items-center gap-8"
-            >
-              {/* Tab Switcher */}
-              <div className="flex p-1 bg-slate-100 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-inner flex-wrap justify-center gap-1">
-                <button
-                  onClick={() => setActiveTab('songs')}
-                  className={`relative flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 ${
-                    activeTab === 'songs' ? 'text-white' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300'
-                  }`}
+        <main className="container mx-auto px-4 py-10 sm:py-12 flex-1">
+          {isGuidePage ? (
+            <SeoGuidePage
+              route={resolveSeoRoute(currentPath)}
+              onNavigatePath={navigateToPath}
+              onLaunchAction={(target) => {
+                if (target === 'studio') {
+                  handleOpenStudio(presenterSong?.id || selectedSong?.id);
+                } else {
+                  setActiveTab(target);
+                  navigateToHome();
+                }
+              }}
+            />
+          ) : (
+            <>
+              {/* 1. Hero Section */}
+              <section className="mb-14 text-center">
+                <motion.div
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4 }}
+                  className="space-y-4"
                 >
-                  {activeTab === 'songs' && (
-                    <motion.div
-                      layoutId="active-tab"
-                      className="absolute inset-0 bg-brand-600 rounded-xl shadow-lg shadow-brand-500/20"
-                      transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
-                    />
-                  )}
-                  <Music2 className={`relative z-10 h-4 w-4 ${activeTab === 'songs' ? 'animate-pulse' : ''}`} />
-                  <span className="relative z-10">My Songbook</span>
-                </button>
+                  <p className="text-xs sm:text-sm font-semibold uppercase tracking-wider text-brand-600 dark:text-brand-400">
+                    Tamil Christian Worship Songbook · Live Church Presentation
+                  </p>
+                  <h1 className="mx-auto max-w-4xl text-3xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-slate-900 dark:text-white leading-[1.1] [text-wrap:balance]">
+                    {BRAND_HERO_HEADLINE}
+                  </h1>
+                  <p className="mx-auto max-w-2xl text-base sm:text-lg text-slate-600 dark:text-slate-400 leading-relaxed">
+                    {activeTab === 'songs'
+                      ? 'Organize Tamil Christian worship lyrics and display them beautifully on church screens with customizable live presentation themes, clear Tamil typography, and seamless slide control.'
+                      : activeTab === 'discover'
+                        ? 'Discover over 16,000+ Tamil Christian songs from Tamil Christian World, preview lyrics & chords, and present live.'
+                        : activeTab === 'bible'
+                          ? 'Read, search, and present Tamil and English Scripture verses seamlessly during worship.'
+                          : 'Browse and project monthly promise verse wallpapers directly onto your church screen.'}
+                  </p>
 
-                <button
-                  onClick={() => setActiveTab('discover')}
-                  className={`relative flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 ${
-                    activeTab === 'discover' ? 'text-white' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300'
-                  }`}
+                  {/* Primary & Presentation CTAs */}
+                  <div className="flex flex-wrap items-center justify-center gap-3 pt-2 pb-4">
+                    <Button
+                      onClick={() => {
+                        const el = document.getElementById('workspace');
+                        el?.scrollIntoView({ behavior: 'smooth' });
+                      }}
+                      className="rounded-xl bg-brand-600 hover:bg-brand-700 text-white px-6 h-11 font-semibold gap-2 shadow-sm whitespace-nowrap shrink-0 cursor-pointer"
+                    >
+                      <span>Get Started</span>
+                      <ArrowDown className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => handleOpenStudio(presenterSong?.id || selectedSong?.id)}
+                      className="rounded-xl border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800 px-6 h-11 font-semibold gap-2 whitespace-nowrap shrink-0 cursor-pointer"
+                    >
+                      <Tv className="h-4 w-4 text-brand-600 dark:text-brand-400" />
+                      <span>Explore Presentation</span>
+                    </Button>
+                  </div>
+                </motion.div>
+
+                <motion.div
+                  id="workspace"
+                  initial={{ opacity: 0, scale: 0.98 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.15, duration: 0.4 }}
+                  className="scroll-mt-24 flex flex-col items-center gap-7 pt-4"
                 >
-                  {activeTab === 'discover' && (
-                    <motion.div
-                      layoutId="active-tab"
-                      className="absolute inset-0 bg-purple-600 rounded-xl shadow-lg shadow-purple-500/20"
-                      transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
-                    />
-                  )}
-                  <Globe className={`relative z-10 h-4 w-4 ${activeTab === 'discover' ? 'animate-pulse' : ''}`} />
-                  <span className="relative z-10">Discover (16K+)</span>
-                </button>
-
-                <button
-                  onClick={() => setActiveTab('bible')}
-                  className={`relative flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 ${
-                    activeTab === 'bible' ? 'text-white' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300'
-                  }`}
-                >
-                  {activeTab === 'bible' && (
-                    <motion.div
-                      layoutId="active-tab"
-                      className="absolute inset-0 bg-brand-600 rounded-xl shadow-lg shadow-brand-500/20"
-                      transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
-                    />
-                  )}
-                  <BookOpen className={`relative z-10 h-4 w-4 ${activeTab === 'bible' ? 'animate-pulse' : ''}`} />
-                  <span className="relative z-10">Bible</span>
-                </button>
-
-                <button
-                  onClick={() => setActiveTab('promiseVerse')}
-                  className={`relative flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 ${
-                    activeTab === 'promiseVerse' ? 'text-white' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300'
-                  }`}
-                >
-                  {activeTab === 'promiseVerse' && (
-                    <motion.div
-                      layoutId="active-tab"
-                      className="absolute inset-0 bg-amber-500 rounded-xl shadow-lg shadow-amber-500/20"
-                      transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
-                    />
-                  )}
-                  <Sparkles className={`relative z-10 h-4 w-4 ${activeTab === 'promiseVerse' ? 'animate-pulse text-slate-950' : ''}`} />
-                  <span className="relative z-10">Promise Verse</span>
-                </button>
-              </div>
-
-              {activeTab !== 'discover' && (
-                <SongSearch 
-                  value={searchQuery} 
-                  onChange={setSearchQuery} 
-                  placeholder={activeTab === 'songs' ? "Search for songs, numbers or genre..." : "Browse Bible Chapters..."}
-                />
-              )}
-            </motion.div>
-          </section>
-
-          {/* Grid Section */}
-          <section>
-            {activeTab !== 'discover' && (
-              <div className="mb-8 flex items-center justify-between">
-                <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
-                  {searchQuery ? 'Search Results' : (activeTab === 'songs' ? 'Recent Songs' : activeTab === 'bible' ? 'Bible Database' : 'Promise Verse Wallpapers')}
-                </h2>
-                {(activeTab === 'songs' || activeTab === 'promiseVerse') && (
-                  <span className="text-sm text-slate-500">
-                    {activeTab === 'songs' ? `${filteredSongs.length} songs` : 'Monthly Wallpapers'}
-                  </span>
-                )}
-              </div>
-            )}
-
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={activeTab}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.3 }}
-              >
-                {activeTab === 'songs' ? (
-                  filteredSongs.length > 0 ? (
-                    <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                      {filteredSongs.map((song) => (
+                  {/* Interactive Tab Switcher */}
+                  <div className="flex p-1 bg-slate-100 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-inner flex-wrap justify-center gap-1">
+                    <button
+                      onClick={() => setActiveTab('songs')}
+                      className={`relative flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 whitespace-nowrap shrink-0 cursor-pointer ${
+                        activeTab === 'songs' ? 'text-white' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
+                      }`}
+                    >
+                      {activeTab === 'songs' && (
                         <motion.div
-                          key={song.id}
-                          layout
-                          initial={{ opacity: 0, scale: 0.9 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          exit={{ opacity: 0, scale: 0.9 }}
-                          transition={{ duration: 0.2 }}
-                        >
-                          <SongCard 
-                            song={song} 
-                            onView={setSelectedSong} 
-                            onPresent={handlePresentSong} 
-                            onEdit={(s) => setEditingSong(s)}
-                            onDelete={(s) => handleDeleteSong(s.id)}
-                          />
-                        </motion.div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center py-20 text-center">
-                      <div className="mb-4 rounded-full bg-slate-100 dark:bg-slate-900 p-6">
-                        <Music2 className="h-10 w-10 text-slate-300 dark:text-slate-700" />
-                      </div>
-                      <h3 className="text-xl font-semibold text-slate-900 dark:text-white">No songs found</h3>
-                      <p className="text-slate-500">Try adjusting your search or be the first to submit this song!</p>
-                      <Button 
-                        onClick={handleAddClick} 
-                        className="mt-6 gap-2 bg-brand-600"
-                      >
-                        <Plus className="h-4 w-4" /> Submit Lyrics
-                      </Button>
-                    </div>
-                  )
-                ) : activeTab === 'discover' ? (
-                  <DiscoverSongs 
-                    onPresentSong={handlePresentExternalSong} 
-                    isDarkMode={isDarkMode} 
-                  />
-                ) : activeTab === 'bible' ? (
-                  <BibleReader />
-                ) : (
-                  <PromiseVerseManager 
-                    user={user} 
-                    canvasTheme={isDarkMode ? 'dark' : 'light'} 
-                    onPresentVerse={(verse) => {
-                      presenterManager.presentPromiseVerse(verse, true);
-                    }}
-                  />
+                          layoutId="active-tab"
+                          className="absolute inset-0 bg-brand-600 rounded-xl shadow-lg shadow-brand-500/20"
+                          transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                        />
+                      )}
+                      <Music2 className="relative z-10 h-4 w-4" />
+                      <span className="relative z-10">My Songbook</span>
+                    </button>
+
+                    <button
+                      onClick={() => setActiveTab('discover')}
+                      className={`relative flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 whitespace-nowrap shrink-0 cursor-pointer ${
+                        activeTab === 'discover' ? 'text-white' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
+                      }`}
+                    >
+                      {activeTab === 'discover' && (
+                        <motion.div
+                          layoutId="active-tab"
+                          className="absolute inset-0 bg-purple-600 rounded-xl shadow-lg shadow-purple-500/20"
+                          transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                        />
+                      )}
+                      <Globe className="relative z-10 h-4 w-4" />
+                      <span className="relative z-10">Discover (16K+)</span>
+                    </button>
+
+                    <button
+                      onClick={() => setActiveTab('bible')}
+                      className={`relative flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 whitespace-nowrap shrink-0 cursor-pointer ${
+                        activeTab === 'bible' ? 'text-white' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
+                      }`}
+                    >
+                      {activeTab === 'bible' && (
+                        <motion.div
+                          layoutId="active-tab"
+                          className="absolute inset-0 bg-brand-600 rounded-xl shadow-lg shadow-brand-500/20"
+                          transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                        />
+                      )}
+                      <BookOpen className="relative z-10 h-4 w-4" />
+                      <span className="relative z-10">Bible</span>
+                    </button>
+
+                    <button
+                      onClick={() => setActiveTab('promiseVerse')}
+                      className={`relative flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 whitespace-nowrap shrink-0 cursor-pointer ${
+                        activeTab === 'promiseVerse' ? 'text-slate-950' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
+                      }`}
+                    >
+                      {activeTab === 'promiseVerse' && (
+                        <motion.div
+                          layoutId="active-tab"
+                          className="absolute inset-0 bg-amber-400 rounded-xl shadow-lg shadow-amber-500/20"
+                          transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                        />
+                      )}
+                      <Sparkles className="relative z-10 h-4 w-4" />
+                      <span className="relative z-10">Promise Verse</span>
+                    </button>
+                  </div>
+
+                  {activeTab !== 'discover' && (
+                    <SongSearch
+                      value={searchQuery}
+                      onChange={setSearchQuery}
+                      placeholder={activeTab === 'songs' ? "Search for Tamil or English songs, numbers, or genre..." : "Browse Bible Chapters..."}
+                    />
+                  )}
+                </motion.div>
+              </section>
+
+              {/* Workspace Grid Section */}
+              <section>
+                {activeTab !== 'discover' && (
+                  <div className="mb-8 flex items-center justify-between">
+                    <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
+                      {searchQuery ? 'Search Results' : (activeTab === 'songs' ? 'Worship Songbook' : activeTab === 'bible' ? 'Bible Database' : 'Promise Verse Wallpapers')}
+                    </h2>
+                    {(activeTab === 'songs' || activeTab === 'promiseVerse') && (
+                      <span className="text-sm text-slate-500 tabular-nums">
+                        {activeTab === 'songs' ? `${filteredSongs.length} songs` : 'Monthly Wallpapers'}
+                      </span>
+                    )}
+                  </div>
                 )}
-              </motion.div>
-            </AnimatePresence>
-          </section>
+
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={activeTab}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    transition={{ duration: 0.25 }}
+                  >
+                    {activeTab === 'songs' ? (
+                      filteredSongs.length > 0 ? (
+                        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                          {filteredSongs.map((song) => (
+                            <motion.div
+                              key={song.id}
+                              layout
+                              initial={{ opacity: 0, scale: 0.95 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              exit={{ opacity: 0, scale: 0.95 }}
+                              transition={{ duration: 0.2 }}
+                            >
+                              <SongCard
+                                song={song}
+                                onView={setSelectedSong}
+                                onPresent={handlePresentSong}
+                                onEdit={(s) => setEditingSong(s)}
+                                onDelete={(s) => handleDeleteSong(s.id)}
+                              />
+                            </motion.div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center py-16 text-center rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-slate-900/40">
+                          <div className="mb-4 rounded-full bg-slate-100 dark:bg-slate-900 p-5">
+                            <Music2 className="h-9 w-9 text-slate-400 dark:text-slate-600" />
+                          </div>
+                          <h3 className="text-xl font-semibold text-slate-900 dark:text-white">No songs found</h3>
+                          <p className="text-sm text-slate-500 mt-1 max-w-md">
+                            Try adjusting your search or add a new song to your Tamil Worship Lyrics library.
+                          </p>
+                          <Button
+                            onClick={handleAddClick}
+                            className="mt-5 gap-2 bg-brand-600 hover:bg-brand-700 text-white rounded-xl cursor-pointer"
+                          >
+                            <Plus className="h-4 w-4" /> Add Song Lyrics
+                          </Button>
+                        </div>
+                      )
+                    ) : activeTab === 'discover' ? (
+                      <DiscoverSongs
+                        onPresentSong={handlePresentExternalSong}
+                        isDarkMode={isDarkMode}
+                      />
+                    ) : activeTab === 'bible' ? (
+                      <BibleReader />
+                    ) : (
+                      <PromiseVerseManager
+                        user={user}
+                        canvasTheme={isDarkMode ? 'dark' : 'light'}
+                        onPresentVerse={(verse) => {
+                          presenterManager.presentPromiseVerse(verse, true);
+                        }}
+                      />
+                    )}
+                  </motion.div>
+                </AnimatePresence>
+              </section>
+
+              {/* Sections 2-8: Live Presentation Feature, Management Bento, Typography & Themes, Workflow, Audiences, FAQ, Final CTA */}
+              <LandingSections
+                onOpenStudio={() => handleOpenStudio(presenterSong?.id || selectedSong?.id)}
+                onNavigateTab={(tab) => {
+                  setActiveTab(tab);
+                  const el = document.getElementById('workspace');
+                  el?.scrollIntoView({ behavior: 'smooth' });
+                }}
+                onNavigatePath={navigateToPath}
+                onAddSong={handleAddClick}
+              />
+            </>
+          )}
         </main>
 
         <Footer
           onNavigateTab={(tab) => {
             setActiveTab(tab);
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+            if (currentPath !== '/') {
+              navigateToHome();
+            } else {
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
           }}
+          onNavigatePath={navigateToPath}
           onOpenStudio={() => handleOpenStudio(presenterSong?.id || selectedSong?.id)}
           onAddSong={handleAddClick}
           onOpenCopyright={() => {
@@ -656,10 +749,10 @@ export default function App() {
         />
 
         {/* Modals */}
-        <LyricsModal 
-          song={selectedSong} 
-          isOpen={!!selectedSong} 
-          onClose={() => setSelectedSong(null)} 
+        <LyricsModal
+          song={selectedSong}
+          isOpen={!!selectedSong}
+          onClose={() => setSelectedSong(null)}
           onPresent={handlePresentSong}
           onEdit={(s) => {
             setSelectedSong(null);
@@ -667,11 +760,11 @@ export default function App() {
           }}
           onDelete={(s) => handleDeleteSong(s.id)}
         />
-        
-        <SubmitSongDialog 
-          isOpen={isSubmitOpen} 
-          onClose={() => setIsSubmitOpen(false)} 
-          onSubmit={handleSubmitSong} 
+
+        <SubmitSongDialog
+          isOpen={isSubmitOpen}
+          onClose={() => setIsSubmitOpen(false)}
+          onSubmit={handleSubmitSong}
           suggestedSongNo={suggestedSongNo}
           songs={songs}
         />
@@ -684,7 +777,7 @@ export default function App() {
           onDelete={handleDeleteSong}
         />
 
-        <SettingsDialog 
+        <SettingsDialog
           isOpen={isSettingsOpen}
           onClose={() => setIsSettingsOpen(false)}
           isDarkMode={isDarkMode}
@@ -706,7 +799,8 @@ export default function App() {
         {/* Floating Action Button for Mobile */}
         <Button
           onClick={handleAddClick}
-          className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-2xl sm:hidden bg-brand-600"
+          aria-label="Add Song Lyrics"
+          className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-2xl sm:hidden bg-brand-600 hover:bg-brand-700 text-white"
           size="icon"
         >
           <Plus className="h-6 w-6" />
@@ -715,5 +809,3 @@ export default function App() {
     </ErrorBoundary>
   );
 }
-
-

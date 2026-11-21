@@ -207,7 +207,7 @@ export function PresentationLiveMenu({
 
           <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800/80 px-2 flex items-center justify-between text-[10px] text-slate-400">
             <span>Hover or click any option to launch</span>
-            <span className="font-mono">ECI Live Engine</span>
+            <span className="font-mono">Live Projection Engine</span>
           </div>
         </div>
       )}

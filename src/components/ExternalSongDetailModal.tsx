@@ -323,7 +323,7 @@ export const ExternalSongDetailModal: React.FC<ExternalSongDetailModalProps> = (
                 <Info className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0 mt-0.5" />
                 <div className="text-xs text-purple-900/80 dark:text-purple-300/90 leading-relaxed space-y-1 flex-1">
                   <p>
-                    <strong>Attribution:</strong> External source: <a href="https://tamilchristianworld.com" target="_blank" rel="noopener noreferrer" className="underline font-medium hover:text-purple-700 dark:hover:text-purple-200">Tamil Christian World</a>. ECI Songbook does not own third-party song copyrights; churches are responsible for maintaining appropriate licences (e.g. CCLI).
+                    <strong>Attribution:</strong> External source: <a href="https://tamilchristianworld.com" target="_blank" rel="noopener noreferrer" className="underline font-medium hover:text-purple-700 dark:hover:text-purple-200">Tamil Christian World</a>. Tamil Worship Lyrics does not own third-party song copyrights; churches are responsible for maintaining appropriate licences (e.g. CCLI).
                   </p>
                   <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
                     <span className="text-[11px] text-purple-700/70 dark:text-purple-400/70">

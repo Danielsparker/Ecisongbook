@@ -204,7 +204,7 @@ export function PresenterDock({ onOpenStudio }: PresenterDockProps) {
             <div className="min-w-0 pr-2">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-bold text-white truncate drop-shadow-sm max-w-[160px] sm:max-w-[240px]">
-                  {presState.title || 'ECI Live Presentation'}
+                  {presState.title || 'Tamil Worship Live Presentation'}
                 </span>
                 {presState.subtitle && (
                   <Badge variant="outline" className="hidden md:inline-flex text-[10px] py-0 px-1.5 bg-slate-800 border-slate-700 text-slate-300">

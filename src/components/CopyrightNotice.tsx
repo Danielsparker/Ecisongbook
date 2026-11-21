@@ -13,13 +13,13 @@ export const EXTERNAL_EXPORT_REMINDER_TEXT =
   'Exporting externally sourced lyrics is provided for worship preparation convenience only. Export functionality does not grant copyright, reproduction, or distribution rights. Please ensure your church holds the appropriate licences (such as CCLI or equivalent) before reproducing or distributing these lyrics.';
 
 export const COPYRIGHT_NOTICE_PARAGRAPHS: string[] = [
-  'ECI Songbook is a church song search and presentation platform designed to help congregations access and present worship songs conveniently.',
+  'Tamil Worship Lyrics is a church song search and presentation platform designed to help congregations access and present worship songs conveniently.',
   'Lyrics retrieved from external sources may be protected by copyright and remain the property of their respective authors, composers, publishers or copyright holders.',
-  'ECI Songbook does not claim ownership of third-party songs and does not grant copyright or reproduction permissions for externally sourced content.',
+  'Tamil Worship Lyrics does not claim ownership of third-party songs and does not grant copyright or reproduction permissions for externally sourced content.',
   'Churches and users are responsible for ensuring that they have the appropriate permissions or licences before reproducing, displaying, projecting, exporting or distributing copyrighted song lyrics.',
   'Where applicable, churches should maintain an appropriate reproduction licence, such as CCLI or an equivalent licence, and report song usage according to the relevant licensing requirements.',
   'External song search, export and presentation features are provided for convenience. They are intended to help churches access and present songs they are already authorised to use.',
-  'Using ECI Songbook or accessing an external song API does not automatically grant permission to use copyrighted content.',
+  'Using Tamil Worship Lyrics or accessing an external song API does not automatically grant permission to use copyrighted content.',
   'For copyright permissions, licensing enquiries or removal requests, users should contact the respective copyright holders or external content providers.',
 ];
 
@@ -177,10 +177,10 @@ export const ExternalCopyrightConsentDialog: React.FC<ExternalCopyrightConsentDi
         <div className="flex-1 min-h-0 overflow-y-auto p-5 sm:p-6 space-y-4">
           <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60 p-4 space-y-2.5 text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
             <p>
-              This song is retrieved from an external source ({song.source || 'Tamil Christian World'}) and is not owned by ECI Songbook. Accessing external lyrics through an API does not grant permission to reproduce, export, or publicly project copyrighted content.
+              This song is retrieved from an external source ({song.source || 'Tamil Christian World'}) and is not owned by Tamil Worship Lyrics. Accessing external lyrics through an API does not grant permission to reproduce, export, or publicly project copyrighted content.
             </p>
             <p>
-              Churches are responsible for maintaining appropriate permissions or licences (such as CCLI or an equivalent licence) and reporting song usage where required. ECI Songbook does not verify or validate individual church licences.
+              Churches are responsible for maintaining appropriate permissions or licences (such as CCLI or an equivalent licence) and reporting song usage where required. Tamil Worship Lyrics does not verify or validate individual church licences.
             </p>
             <button
               type="button"
@@ -327,7 +327,7 @@ export const SongSourceBadge: React.FC<{ isExternal?: boolean; songNo?: number }
   return (
     <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-mono font-bold rounded-full bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-400 border border-brand-100 dark:border-brand-800">
       <ShieldCheck className="w-2.5 h-2.5" />
-      <span>ECI{songNo ? ` #${songNo}` : ''}</span>
+      <span>{songNo ? `Song #${songNo}` : 'Songbook'}</span>
     </span>
   );
 };
